@@ -49,6 +49,30 @@ ALTER TABLE relocations ADD COLUMN IF NOT EXISTS trip jsonb;   -- trips.stats():
 -- 2026-10-29: ways home (relocations into Hobart with the ferry included) get one instant Signal alert each
 ALTER TABLE relocations ADD COLUMN IF NOT EXISTS home_alerted_at timestamptz;
 
+-- 2026-10-29: route alerts (any start -> finish, saved from the Routes page) and the dashboard's on/off switches
+CREATE TABLE IF NOT EXISTS watches (
+    id            bigserial PRIMARY KEY,
+    origin        text,                       -- NULL = anywhere
+    destination   text,                       -- NULL = anywhere
+    require_ferry boolean NOT NULL DEFAULT false,
+    require_fuel  boolean NOT NULL DEFAULT false,
+    matches_only  boolean NOT NULL DEFAULT false,   -- false = any vehicle
+    alert         boolean NOT NULL DEFAULT true,
+    created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS watch_seen (
+    watch_id       bigint NOT NULL REFERENCES watches (id) ON DELETE CASCADE,
+    relocation_id  bigint NOT NULL REFERENCES relocations (id),
+    seen_at        timestamptz NOT NULL,
+    alerted        boolean NOT NULL,          -- false = baseline or the alert was switched off
+    PRIMARY KEY (watch_id, relocation_id)
+);
+CREATE TABLE IF NOT EXISTS prefs (           -- switches set on the Alerts page; they override config.yaml
+    key        text PRIMARY KEY,
+    value      jsonb NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- Road distances from the routing service, kept for good (one request per route, ever).
 CREATE TABLE IF NOT EXISTS road_routes (
     key          text PRIMARY KEY,        -- "lon,lat;lon,lat[;...]" rounded to 4 places

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Alerts · Relocation Camper Watch{% endblock %}
+{% block main %}
+<h1>Signal alerts</h1>
+<p class="sub">Switch any message on or off. Changes apply straight away and override config.yaml.{% if not signal_ready and not dry_run %} <strong>Signal isn't configured</strong> (SIGNAL_URL / SIGNAL_FROM / SIGNAL_TO in app.env), so nothing can be sent.{% endif %}</p>
+
+<div class="switches">
+  {% for key, sw in switches.items() %}
+  {% set section, name, label = sw %}
+  {% set on = cfg[section][name] %}
+  <div class="switch-row">
+    <div>
+      <div><strong>{{ label }}</strong></div>
+      <div class="meta">
+        {% if key == 'digest' %}Every day at {{ cfg.schedule.digest_time }}{% if last_digest %} · last one {{ last_digest.created_at|dt }}{% endif %}
+        {% elif key == 'outage' %}One message per outage, after {{ cfg.alerts.outage_hours }} h without a good poll
+        {% elif key == 'instant_starred' %}A message for each new match with a ⭐, with its booking link{% endif %}
+      </div>
+    </div>
+    <form method="post" action="/alerts/switch{{ qs({'key': key, 'on': 0 if on else 1}) }}">
+      <button class="toggle {{ 'is-on' if on else 'is-off' }}" type="submit" aria-pressed="{{ 'true' if on else 'false' }}">{{ 'On' if on else 'Off' }}</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+
+<h2>Route alerts</h2>
+<p class="sub">A message when a new relocation appears on a saved route. Add routes from the <a href="/routes">Routes</a> page.</p>
+{% if saved %}
+<div class="switches">
+  {% for w in saved %}
+  <div class="switch-row">
+    <div>
+      <div><strong><a href="/routes?watch={{ w.id }}">{{ w.label }}</a></strong></div>
+      <div class="meta">{{ w.count }} listed now · saved {{ w.created_at|dt }}</div>
+    </div>
+    <div class="switch-actions">
+      <form method="post" action="/alerts/route/{{ w.id }}{{ qs({'on': 0 if w.alert else 1}) }}">
+        <button class="toggle {{ 'is-on' if w.alert else 'is-off' }}" type="submit" aria-pressed="{{ 'true' if w.alert else 'false' }}">{{ 'On' if w.alert else 'Off' }}</button>
+      </form>
+      <form method="post" action="/alerts/route/{{ w.id }}?delete=1" onsubmit="return confirm('Remove this route alert?')">
+        <button class="linkish" type="submit">Remove</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+  <div class="empty">No route alerts yet.</div>
+{% endif %}
+
+{% if recent %}
+<h2>Recent messages</h2>
+<div class="tablewrap"><table>
+  <tr><th>When</th><th>Kind</th><th>Result</th><th>Message</th></tr>
+  {% for m in recent %}
+  <tr><td>{{ m.created_at|dt }}</td><td>{{ m.kind }}</td><td>{{ 'dry run' if m.dry_run else ('sent' if m.sent else 'FAILED') }}</td>
+    <td class="wrap-cell">{{ m.text|truncate(140) }}</td></tr>
+  {% endfor %}
+</table></div>
+{% endif %}
+{% endblock %}

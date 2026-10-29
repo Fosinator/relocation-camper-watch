@@ -1,9 +1,6 @@
 {% extends "base.html" %}
 {% from "_card.html" import card with context %}
 {% block main %}
-{% if ways_home %}
-<a class="home-teaser" href="/home">🏠 <strong>{{ ways_home|length }} way{{ "s" if ways_home|length != 1 }} home to {{ cfg.home.city }}</strong> from {{ (ways_home|map(attribute="home_cost")|map(attribute="total")|min)|money }} <span class="meta">→ see them all</span></a>
-{% endif %}
 
 <h1 id="matches">Current matches</h1>
 <p class="sub">{{ matches|length }} matching relocation{{ 's' if matches|length != 1 }}{% if filtered %} shown{% endif %} out of {{ open_total }} listed right now. Starred ones hit a keyword or include fuel or a ferry.</p>

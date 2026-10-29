@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Routes · Relocation Camper Watch{% endblock %}
+{% block main %}
+<h1>Routes</h1>
+<p class="sub">Pick a start and finish to see every relocation on that route, in any vehicle unless you ask for matches only, with what it would cost you. Save a route to get a Signal message when a new one appears.</p>
+
+<form class="route-form" method="get" action="/routes">
+  <label>Start
+    <select name="from">
+      <option value="">Anywhere</option>
+      {% for city, n in from_places %}<option value="{{ city }}"{{ ' selected' if (route.origin or '')|lower == city|lower }}>{{ city }} ({{ n }})</option>{% endfor %}
+    </select>
+  </label>
+  <span class="route-arrow">→</span>
+  <label>Finish
+    <select name="to">
+      <option value="">Anywhere</option>
+      {% for city, n in to_places %}<option value="{{ city }}"{{ ' selected' if (route.destination or '')|lower == city|lower }}>{{ city }} ({{ n }})</option>{% endfor %}
+    </select>
+  </label>
+  <label class="check"><input type="checkbox" name="ferry" value="1"{{ ' checked' if route.require_ferry }}> Ferry included</label>
+  <label class="check"><input type="checkbox" name="fuel" value="1"{{ ' checked' if route.require_fuel }}> Fuel included</label>
+  <label class="check"><input type="checkbox" name="matches" value="1"{{ ' checked' if route.matches_only }}> Matches only</label>
+  <input type="hidden" name="sort" value="{{ sort }}">
+  <button class="btn" type="submit">Show</button>
+</form>
+
+<div class="route-bar">
+  <div><strong>{{ route_label }}</strong> · {{ deals|length }} listed</div>
+  {% if this_watch and this_watch.alert %}
+    <span class="pill pill-ferry">🔔 Alerts on</span> <a class="meta" href="/alerts">change</a>
+  {% else %}
+    <form method="post" action="/routes/watch{{ qs(params) }}"><button class="btn alt" type="submit">🔔 Alert me about this route</button></form>
+  {% endif %}
+</div>
+{% if saved %}
+<div class="tools">
+  <span class="meta">Saved:</span>
+  {% for w in saved %}<a class="chip{{ ' on' if this_watch and this_watch.id == w.id }}" href="/routes?watch={{ w.id }}">{{ '🔔 ' if w.alert }}{{ w.origin or 'Anywhere' }} → {{ w.destination or 'anywhere' }}{% if w.require_ferry %} ⛴{% endif %}{% if w.require_fuel %} ⛽{% endif %}</a>{% endfor %}
+</div>
+{% endif %}
+
+{% if deals %}
+<div class="home-summary">
+  {% if cheapest %}<div class="tile"><div class="meta">Cheapest</div><div class="big">{{ cheapest.cost.total|money }}</div><div class="meta">{{ cheapest.origin }} → {{ cheapest.destination }}, picks up {{ cheapest.pickup_from|d }}</div></div>{% endif %}
+  {% if soonest %}<div class="tile"><div class="meta">Soonest pickup</div><div class="big">{{ soonest|d }}</div><div class="meta">{{ (soonest - today()).days }} days away</div></div>{% endif %}
+  <div class="tile"><div class="meta">With fuel included</div><div class="big">{{ deals|selectattr('fuel_allowance')|list|length }}</div><div class="meta">of {{ deals|length }}</div></div>
+</div>
+
+<div class="tools">
+  <span class="meta">Sort:</span>
+  {% for key, lbl in sorts.items() %}
+    <a class="chip{{ ' on' if sort == key }}" href="{{ qs(params, sort=key) }}">{{ lbl }}</a>
+  {% endfor %}
+</div>
+
+<div class="cards">
+{% for r in deals %}
+  {% set c = r.cost %}
+  {% set t = r.trip or {} %}
+  <article class="card home-card{{ ' star' if r.matched and r.boosted }}">
+    <div class="home-head">
+      <div>
+        <div class="route">{{ r.origin or '****' }} → {{ r.destination or '****' }}</div>
+        <div class="meta">{{ r.vehicle_name or r.vehicle_type }}{% if r.berths %} · {{ r.berths }} berths{% endif %}{% if r.matched %} · ✓ matches your filters{% endif %}</div>
+      </div>
+      <div class="home-cost" title="{% for lbl, amount in c.parts %}{{ lbl }} ${{ amount }}{{ ' · ' if not loop.last }}{% endfor %}">
+        <div class="big">{{ c.total|money }}</div><div class="meta">out of pocket</div>
+      </div>
+    </div>
+    <div class="home-chips">
+      {% if r.ferry_short %}<span class="pill pill-ferry">⛴ {{ r.ferry_short }}</span>{% endif %}
+      {% if r.fuel_allowance %}<span class="pill pill-fuel">⛽ {{ r.fuel_allowance|money }} fuel</span>{% endif %}
+      {% if t.pace %}<span class="pace pace-{{ t.pace|replace(' ', '-') }}">{{ t.pace|capitalize }} · {{ t.hours_per_day }} h a day</span>{% endif %}
+    </div>
+    <dl class="facts">
+      <dt>Pick up</dt><dd>{{ r.pickup_from|d }} – {{ r.pickup_to|d }}</dd>
+      <dt>Days</dt><dd>{{ r.days_included|stars }}{% if r.extra_days %} + up to {{ r.extra_days }} extra{% if r.extra_day_price is not none %} at {{ r.extra_day_price|money }}/day{% endif %}{% endif %}</dd>
+      {% if t.route_km %}<dt>Drive</dt><dd>{{ t.route_km|km }} · {{ t.drive_hours }} h{% if t.explore_km %} · {{ t.explore_km|km }} spare{% endif %}</dd>{% endif %}
+      <dt>Costs</dt><dd>{% for lbl, amount in c.parts %}{{ lbl }} {{ amount|money }}{{ ' · ' if not loop.last }}{% endfor %}{% if c.notes %}<br><span class="meta">{{ c.notes|join('; ') }}</span>{% endif %}</dd>
+    </dl>
+    {% if r.ferry and r.ferry_short and r.ferry|length > r.ferry_short|length + 10 %}
+    <details class="small-details"><summary class="meta">Ferry wording</summary><p class="meta">{{ r.ferry }}</p></details>
+    {% endif %}
+    <div class="links">
+      <a class="btn" href="{{ r.url }}" target="_blank" rel="noopener">Book on {{ source_label(r.source) }} →</a>
+      {% for a in r.also %}<a class="btn alt" href="{{ a.url }}" target="_blank" rel="noopener">Also on {{ source_label(a.source) }} →</a>{% endfor %}
+    </div>
+  </article>
+{% endfor %}
+</div>
+<p class="meta" style="margin-top:16px">Out of pocket = $1/day hire + booking fee (Imoova shows it; Transfercar doesn't) + fuel for the route less any allowance{% if cfg.home.extra_passenger_ferry_aud is not none %} + {{ cfg.home.extra_passenger_ferry_aud|money }} a ferry seat for each extra passenger{% endif %}. Ferry deals cover the vehicle and driver{% if cfg.home.passengers > 1 %}; {{ cfg.home.passengers - 1 }} more passenger{{ 's' if cfg.home.passengers > 2 }} need{{ 's' if cfg.home.passengers == 2 }} their own seat{% endif %}.</p>
+{% else %}
+  <div class="empty">Nothing listed on {{ route_label }} right now.{% if not (this_watch and this_watch.alert) %} Save it with "Alert me" and you'll get a Signal message when one appears.{% endif %}</div>
+{% endif %}
+{% endblock %}

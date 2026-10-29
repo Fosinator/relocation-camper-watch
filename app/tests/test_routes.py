@@ -1,8 +1,8 @@
-"""Ways home to Hobart: the cost estimate, the ferry wording and the same van on both sites (2026-10-29 data:
+"""Routes (formerly ways home to Hobart): the cost estimate, the ferry wording and the same van on both sites (2026-10-29 data:
 Sydney -> Hobart, Cruisin Motorhomes 6-berth listed on Imoova and Transfercar, ferry Geelong -> Devonport)."""
 from datetime import date
 
-from rcw import home
+from rcw import routes as home
 
 
 def row(**kw):
@@ -46,7 +46,8 @@ def test_same_van_on_both_sites_is_one_deal(cfg):
     deals = home.group([im, tc, other_day])
     assert len(deals) == 2 and [a["id"] for a in deals[0]["also"]] == [2]
     for d in deals:
-        d["home_cost"], d["ferry"], d["fuel_allowance"] = home.cost(d, cfg), home.ferry_text(d["inclusions"]), None
+        d["cost"], d["ferry"], d["fuel_allowance"] = home.cost(d, cfg), home.ferry_text(d["inclusions"]), None
+        d["ferry_short"] = home.ferry_summary(d["ferry"])
     lines = home.message_lines(deals[0])
     assert lines[0] == "Sydney → Hobart · 6-berth motorhome · 5 days · pick up 16 Nov"
     assert lines[1] == "⛴ ferry sailing booked Geelong → Devonport 17 Nov 6:45pm"
@@ -68,12 +69,17 @@ def test_ferry_summaries_from_the_live_wording():
         == "included for the vehicle + 1 passenger"
     assert s("Ferry spot for the vehicle and driver (ocean recliner) booked by rental operator") \
         == "included for the vehicle + driver"
-    assert s(None) == "included for the vehicle + driver"
+    assert s(None) is None
 
 
-def test_where_from_cities(cfg):
-    cond, params = home.where(cfg, date(2026, 10, 29))
-    assert "ferry" in cond and "home_from" not in params
-    cfg["home"]["from_cities"] = ["Sydney", "Melbourne"]
-    cond, params = home.where(cfg, date(2026, 10, 29))
-    assert params["home_from"] == ["sydney", "melbourne"]
+def test_route_conditions_and_label():
+    cond, params = home.where({"destination": "Hobart", "require_ferry": True}, date(2026, 10, 29))
+    assert "ferry" in cond and params["r_dest"] == "Hobart" and "r_origin" not in params and "matched" not in cond
+    cond, params = home.where({"origin": "Sydney", "require_fuel": True, "matches_only": True}, date(2026, 10, 29))
+    assert "fuel" in cond and "matched" in cond and params["r_origin"] == "Sydney"
+    assert home.label({"destination": "Hobart", "require_ferry": True}) == "Anywhere → Hobart · ferry included · any vehicle"
+    assert home.label({"origin": "Sydney", "matches_only": True}) == "Sydney → anywhere · matches only"
+
+
+def test_no_ferry_seat_note_without_a_ferry(cfg):
+    assert home.cost(row(inclusions="Fuel $250"), cfg)["notes"] == []

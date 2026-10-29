@@ -6,7 +6,7 @@
   digest --send                 send the digest now (honours dry-run in config.yaml / DRY_RUN=1)
   outages                       run the 24-hour outage check now
   trips                         recompute the trip stats now (fetching missing routes within the budget)
-  home                          list the ways home with their cost estimate (changes nothing)
+  routes                        list the route alerts and what is on each (changes nothing)
 """
 import argparse
 import logging
@@ -50,13 +50,15 @@ def main(argv=None) -> int:
     g.add_argument("--send", action="store_true")
     sub.add_parser("outages")
     sub.add_parser("trips")
-    sub.add_parser("home")
+    sub.add_parser("routes")
     a = p.parse_args(argv)
     cfg = config.load()
 
     if a.cmd == "migrate":
+        from . import routes
         with db.conn() as c:
             db.migrate(c)
+            routes.seed_home_watch(c, cfg, timefmt.today(), timefmt.now())
         print("schema up to date")
     elif a.cmd == "poll":
         for name in (SOURCES if a.source == "all" else [a.source]):
@@ -75,13 +77,14 @@ def main(argv=None) -> int:
     elif a.cmd == "trips":
         from . import trips
         print(trips.refresh(cfg))
-    elif a.cmd == "home":
-        from . import home
+    elif a.cmd == "routes":
+        from . import routes
         with db.conn() as c:
-            deals = home.group(home.open_rows(c, cfg, timefmt.today()))
-        print(f"{len(deals)} ways home to {cfg['home']['city']}\n")
-        for d in deals:
-            print("\n".join(home.message_lines(d)) + "\n")
+            for w in routes.watches(c):
+                deals = routes.group(routes.rows(c, cfg, w, timefmt.today()))
+                print(f"== {routes.label(w)} - alert {'on' if w['alert'] else 'off'} - {len(deals)} listed\n")
+                for d in deals:
+                    print("\n".join(routes.message_lines(d)) + "\n")
     return 0
 
 

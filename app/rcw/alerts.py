@@ -19,6 +19,8 @@ def _record(c, kind: str, cfg: dict, sent: bool, text: str) -> None:
 
 
 def check_outages(cfg: dict, now) -> int:
+    if not cfg["alerts"].get("outage", True):  # switched off on the Alerts page
+        return 0
     limit = timedelta(hours=float(cfg["alerts"]["outage_hours"]))
     sent = 0
     with db.conn() as c:

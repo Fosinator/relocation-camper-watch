@@ -1,20 +1,21 @@
-"""The dashboard (http://10.1.1.200, LAN only, no login: public data, no decisions - David 2026-10-29).
+"""The dashboard (http://10.1.1.200, LAN only, no login).
 
-Current: open matches (starred first) and missed opportunities from the last two days.
+Current: open matches with From/To dropdowns, onward legs for chaining, and missed opportunities from the last two
+days. Routes: any start -> finish (any vehicle), with the cost and a button to save it as a route alert.
 History: matches that went more than two days ago (kept forever). Stats: the brief's numbers.
+Alerts: every Signal message can be switched on or off (David 2026-10-29: "signal alerts optional").
 """
 import logging
 from contextlib import asynccontextmanager
-from datetime import timedelta
+from datetime import date, timedelta
 from pathlib import Path
-
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from . import chain, config, db, home, scheduler, settings, signal, stats, timefmt, trips
+from . import chain, config, db, prefs, routes, scheduler, settings, signal, stats, timefmt, trips
 from .sources import SOURCES
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -45,7 +46,27 @@ templates.env.globals.update(version=VERSION, source_label=lambda s: SOURCES[s].
                              trip_badge=trips.badge, today=timefmt.today,
                              qs=lambda base, **kw: "?" + urlencode({k: v for k, v in {**base, **kw}.items()
                                                                     if v not in (None, "")}))
-SORTS = {"starred": "Starred first", "explore": "Most room to explore", "soonest": "Soonest pickup"}
+SORTS = {"starred": "Starred first", "cost": "Cheapest", "soonest": "Soonest pickup", "newest": "Newest",
+         "days": "Most days", "explore": "Most room to explore", "easy": "Least driving a day",
+         "fuel": "Biggest fuel allowance"}
+_SORT_KEYS = {
+    "starred": lambda r: (not r["boosted"], r["pickup_from"] or date.max),
+    "cost": lambda r: r["cost"]["total"] if r.get("cost") else 10 ** 9,
+    "soonest": lambda r: r["pickup_from"] or date.max,
+    "newest": lambda r: -r["first_seen"].timestamp(),
+    "days": lambda r: -((r["days_included"] or 0) + (r["extra_days"] or 0)),
+    "explore": lambda r: -((r["trip"] or {}).get("explore_km", -1)),
+    "easy": lambda r: (r["trip"] or {}).get("hours_per_day", 99),
+    "fuel": lambda r: -(trips.fuel_allowance(r["inclusions"]) or 0),
+}
+
+
+def sort_rows(rows: list[dict], key: str) -> list[dict]:
+    return sorted(rows, key=_SORT_KEYS.get(key, _SORT_KEYS["starred"]))
+
+
+def _flag(v) -> bool:
+    return str(v).lower() in ("1", "true", "on", "yes")
 
 
 def _sources(c, cfg) -> list[dict]:
@@ -98,6 +119,7 @@ def current(request: Request, fourwd: str = "", all: int = 0, sort: str = "starr
             window = None
         for r in all_matches:
             r["onward"] = len(chain.onward(r, all_matches, cfg))
+            r["cost"] = routes.cost(r, cfg)
         from_places, to_places = chain.places(all_matches, "origin"), chain.places(all_matches, "destination")
 
         def place_ok(r):
@@ -110,42 +132,102 @@ def current(request: Request, fourwd: str = "", all: int = 0, sort: str = "starr
         others = c.execute("""SELECT * FROM relocations WHERE status = 'open' AND NOT matched
                               ORDER BY vehicle_type, origin, destination""").fetchall() if all else []
         open_total = c.execute("SELECT count(*) AS n FROM relocations WHERE status = 'open'").fetchone()["n"]
-        ways_home = home.group(home.open_rows(c, cfg, timefmt.today())) if cfg["home"].get("city") else []
 
         def view_ok(r):
             return view == "include" or (view == "only") == bool(r["four_wd"])
-        matches = [r for r in matches if view_ok(r)]
+        matches = sort_rows([r for r in matches if view_ok(r)], sort)
         missed = [r for r in missed if view_ok(r) and place_ok(r)]
         others = [r for r in others if place_ok(r)]
-        if sort == "explore":
-            matches.sort(key=lambda r: -((r["trip"] or {}).get("explore_km", -1)))
-        elif sort == "soonest":
-            matches.sort(key=lambda r: (r["pickup_from"] is None, r["pickup_from"]))
         keep = {"fourwd": view, "sort": sort, "all": 1 if all else None, "from": start or None, "to": to or None,
                 "after": first["id"] if first else None}
         return _page(request, "current.html", cfg, c, page="current", matches=matches, missed=missed,
                      others=others, show_all=bool(all), fourwd=view, open_total=open_total, keep_days=keep_days,
-                     sort=sort, sorts=SORTS, ways_home=ways_home, start=start, to=to, from_places=from_places,
+                     sort=sort, sorts=SORTS, start=start, to=to, from_places=from_places,
                      to_places=to_places, first=first, window=window, keep=keep,
                      filtered=bool(start or to or first))
 
 
-@app.get("/home", response_class=HTMLResponse)
-def ways_home_page(request: Request, start: str = Query("", alias="from"), sort: str = "cost"):
+ROUTE_SORTS = {k: SORTS[k] for k in ("cost", "soonest", "newest", "days", "easy", "explore", "fuel")}
+
+
+@app.get("/routes", response_class=HTMLResponse)
+def routes_page(request: Request, start: str = Query("", alias="from"), to: str = "", ferry: str = "",
+                fuel: str = "", matches: str = "", sort: str = "cost", watch: int | None = None):
+    """Start and finish dropdowns over every open listing (any vehicle unless 'matches only'). With no query at
+    all it opens on the first route alert (Anywhere -> Hobart with the ferry, the old 'ways home')."""
     cfg = config.load()
-    sort = sort if sort in ("cost", "soonest", "days") else "cost"
+    sort = sort if sort in ROUTE_SORTS else "cost"
+    today = timefmt.today()
     with db.conn() as c:
-        deals = home.group(home.open_rows(c, cfg, timefmt.today()))
-        origins = chain.places(deals, "origin")
-        shown = [d for d in deals if not start or (d["origin"] or "").lower() == start.lower()]
-        if sort == "cost":
-            shown.sort(key=lambda d: d["home_cost"]["total"])
-        elif sort == "days":
-            shown.sort(key=lambda d: -((d["days_included"] or 0) + (d["extra_days"] or 0)))
-        cheapest = min(deals, key=lambda d: d["home_cost"]["total"]) if deals else None
-        soonest = min((d["pickup_from"] for d in deals if d["pickup_from"]), default=None)
-        return _page(request, "home.html", cfg, c, page="home", deals=shown, total=len(deals), origins=origins,
-                     start=start, sort=sort, cheapest=cheapest, soonest=soonest)
+        saved = routes.watches(c)
+        chosen = next((w for w in saved if w["id"] == watch), None) if watch else None
+        if chosen is None and not request.query_params and saved:
+            chosen = saved[0]
+        if chosen:
+            route = {k: chosen[k] for k in routes.WATCH_FIELDS}
+        else:
+            route = {"origin": start or None, "destination": to or None, "require_ferry": _flag(ferry),
+                     "require_fuel": _flag(fuel), "matches_only": _flag(matches)}
+        everything = c.execute("SELECT origin, destination FROM relocations WHERE status = 'open'").fetchall()
+        deals = sort_rows(routes.group(routes.rows(c, cfg, route, today)), sort)
+        this_watch = next((w for w in saved if all(w[k] == (route[k] if route[k] is not None else None)
+                                                   for k in routes.WATCH_FIELDS)), None)
+        params = {"from": route["origin"], "to": route["destination"], "ferry": 1 if route["require_ferry"] else None,
+                  "fuel": 1 if route["require_fuel"] else None, "matches": 1 if route["matches_only"] else None}
+        return _page(request, "routes.html", cfg, c, page="routes", deals=deals, route=route,
+                     route_label=routes.label(route), params=params, sort=sort, sorts=ROUTE_SORTS,
+                     from_places=chain.places(everything, "origin"), to_places=chain.places(everything, "destination"),
+                     this_watch=this_watch, saved=saved,
+                     cheapest=min(deals, key=lambda d: d["cost"]["total"]) if deals else None,
+                     soonest=min((d["pickup_from"] for d in deals if d["pickup_from"]), default=None))
+
+
+@app.get("/home")
+def old_home_page():
+    return RedirectResponse("/routes", status_code=301)
+
+
+@app.post("/routes/watch")
+def add_route_alert(start: str = Query("", alias="from"), to: str = "", ferry: str = "", fuel: str = "",
+                    matches: str = ""):
+    cfg = config.load()
+    route = {"origin": start or None, "destination": to or None, "require_ferry": _flag(ferry),
+             "require_fuel": _flag(fuel), "matches_only": _flag(matches)}
+    with db.conn() as c:
+        wid = routes.add_watch(c, cfg, route, timefmt.today(), timefmt.now())
+    return RedirectResponse(f"/routes?watch={wid}", status_code=303)
+
+
+@app.get("/alerts", response_class=HTMLResponse)
+def alerts_page(request: Request):
+    cfg = config.load()
+    today = timefmt.today()
+    with db.conn() as c:
+        saved = routes.watches(c)
+        for w in saved:
+            w["label"] = routes.label(w)
+            w["count"] = len(routes.group(routes.rows(c, cfg, w, today)))
+        recent = c.execute("""SELECT * FROM messages WHERE kind <> 'home_baseline'
+                              ORDER BY created_at DESC LIMIT 8""").fetchall()
+        last_digest = c.execute("SELECT * FROM digests ORDER BY created_at DESC LIMIT 1").fetchone()
+        return _page(request, "alerts.html", cfg, c, page="alerts", saved=saved, switches=prefs.SWITCHES,
+                     recent=recent, last_digest=last_digest, signal_ready=signal.configured())
+
+
+@app.post("/alerts/switch")
+def set_alert_switch(key: str, on: str):
+    prefs.set_switch(key, _flag(on))
+    return RedirectResponse("/alerts", status_code=303)
+
+
+@app.post("/alerts/route/{wid}")
+def set_route_alert(wid: int, on: str = "", delete: str = ""):
+    with db.conn() as c:
+        if _flag(delete):
+            c.execute("DELETE FROM watches WHERE id = %s", (wid,))
+        else:
+            c.execute("UPDATE watches SET alert = %s WHERE id = %s", (_flag(on), wid))
+    return RedirectResponse("/alerts", status_code=303)
 
 
 @app.get("/history", response_class=HTMLResponse)

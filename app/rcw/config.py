@@ -40,6 +40,8 @@ DEFAULTS = {
     },
     "alerts": {
         "dry_run": False,
+        "digest": True,
+        "outage": True,
         "instant_starred": False,
         "outage_hours": 24,
         "digest_max_listed": 10,
@@ -129,7 +131,9 @@ def load(path: str | None = None) -> dict:
                 if _state["cfg"] is None:
                     _state["cfg"] = _check(copy.deepcopy(DEFAULTS))
             _state["mtime"] = mtime
-        return copy.deepcopy(_state["cfg"])
+        cfg = copy.deepcopy(_state["cfg"])
+    from . import prefs  # the Alerts page's on/off switches override config.yaml
+    return prefs.apply(cfg)
 
 
 def error() -> str | None:

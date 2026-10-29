@@ -23,7 +23,11 @@ def database(monkeypatch):
     monkeypatch.setattr(settings, "DATABASE_URL", URL)
     monkeypatch.setattr(settings, "DRY_RUN", True)
     with db.conn() as c:
-        c.execute("DROP TABLE IF EXISTS relocations, polls, source_state, digests, messages, road_routes CASCADE")
+        c.execute("""DROP TABLE IF EXISTS relocations, polls, source_state, digests, messages, road_routes, watches,
+                     watch_seen, prefs CASCADE""")
+    from rcw import prefs
+    prefs._cache.update(at=0.0, values={})
+    with db.conn() as c:
         db.migrate(c)
 
 
@@ -163,7 +167,9 @@ def test_every_page_renders_with_trip_stats(cfg, monkeypatch):
         c.execute("UPDATE relocations SET trip = %s", (db.Jsonb(trips.stats(rows()[0], direct, cfg)),))
     client = TestClient(web.app)  # no "with": the scheduler stays off
     for path in ["/", "/?sort=explore", "/?sort=soonest&fourwd=only", "/?all=1", "/?from=Darwin&to=Adelaide",
-                 f"/?after={rows()[0]['id']}", "/?from=Nowhere", "/home", "/home?from=Sydney&sort=days",
+                 f"/?after={rows()[0]['id']}", "/?from=Nowhere", "/?sort=cost", "/?sort=easy", "/?sort=fuel",
+                 "/?sort=newest", "/home", "/routes", "/routes?from=Darwin&to=Adelaide&sort=easy",
+                 "/routes?ferry=1&fuel=1&matches=1", "/alerts",
                  "/history", "/history?all=1", "/stats", "/stats?all=1"]:
         r = client.get(path)
         assert r.status_code == 200, (path, r.text[:300])
@@ -171,26 +177,39 @@ def test_every_page_renders_with_trip_stats(cfg, monkeypatch):
     assert "trip stats" in page and "3,400 km: 378 km beyond the route" in page and "$0.50/km" in page
     assert "limited by the days" in page and "limited by the km cap" in page
     assert '<option value="Darwin">Darwin (1)</option>' in page
-    assert "No ways home to Hobart listed right now." in client.get("/home").text
+    assert "Nothing listed on Anywhere → Hobart · ferry included" in client.get("/routes?to=Hobart&ferry=1").text
     assert "Following on from Darwin → Adelaide" in client.get(f"/?after={rows()[0]['id']}").text
 
 
-def test_ways_home_baseline_then_one_alert_each(cfg, capsys, monkeypatch):
+def test_route_alerts_baseline_new_ones_and_switching_off(cfg, capsys, monkeypatch):
+    from rcw import routes
     cfg["alerts"]["dry_run"] = True
     ferry = "Ferry included Free ferry for vehicle and driver"
     src = Fake("imoova", [listing("imoova", "1", origin="Sydney", destination="Hobart", inclusions=ferry),
-                          listing("imoova", "2", origin="Sydney", destination="Hobart")])   # no ferry: not a way home
-    run(src, cfg, T0)                       # first run: baseline, nothing sent
-    assert "New way home" not in capsys.readouterr().out
+                          listing("imoova", "2", origin="Sydney", destination="Hobart")])   # no ferry: not on the route
+    run(src, cfg, T0)
+    with db.conn() as c:
+        routes.seed_home_watch(c, cfg, T0.date(), T0)   # Anywhere -> Hobart with the ferry: listing 1 is the baseline
+    run(src, cfg, T0 + timedelta(hours=1))
+    assert "New on" not in capsys.readouterr().out
     src.listings.append(listing("imoova", "3", origin="Melbourne", destination="Hobart", berths=1,
                                 vehicle_type="other", inclusions="Fuel $250 · " + ferry))  # any vehicle counts
-    run(src, cfg, T0 + timedelta(hours=1))
+    run(src, cfg, T0 + timedelta(hours=2))
     out = capsys.readouterr().out
-    assert "🏠 New way home to Hobart" in out and "Melbourne → Hobart" in out and "Sydney" not in out
-    assert "⛽ fuel $250" in out
-    run(src, cfg, T0 + timedelta(hours=2))  # already alerted: nothing more
-    assert "New way home" not in capsys.readouterr().out
-    assert "🏠 2 ways home to Hobart listed" in digest.preview(cfg, T0 + timedelta(hours=2))
+    assert "🔔 New on Anywhere → Hobart · ferry included · any vehicle" in out
+    assert "Melbourne → Hobart" in out and "Sydney" not in out and "⛽ fuel $250" in out
+    run(src, cfg, T0 + timedelta(hours=3))  # already sent: nothing more
+    assert "New on" not in capsys.readouterr().out
+    assert "🔔 Anywhere → Hobart · ferry included · any vehicle: 2 listed" in digest.preview(cfg, T0 + timedelta(hours=3))
+    # switched off: new ones are only marked seen, so switching back on sends no backlog
+    with db.conn() as c:
+        c.execute("UPDATE watches SET alert = false")
+    src.listings.append(listing("imoova", "4", origin="Adelaide", destination="Hobart", inclusions=ferry))
+    run(src, cfg, T0 + timedelta(hours=4))
+    with db.conn() as c:
+        c.execute("UPDATE watches SET alert = true")
+    run(src, cfg, T0 + timedelta(hours=5))
+    assert "New on" not in capsys.readouterr().out
 
     from fastapi.testclient import TestClient
 
@@ -198,13 +217,36 @@ def test_ways_home_baseline_then_one_alert_each(cfg, capsys, monkeypatch):
     monkeypatch.setattr(config, "load", lambda path=None: cfg)
     monkeypatch.setattr(web.timefmt, "today", lambda ts=None: T0.date())
     client = TestClient(web.app)
-    page = client.get("/home").text
-    assert "Sydney → Hobart" in page and "Melbourne → Hobart" in page and "⛽ $250 fuel" in page
-    assert "included for the vehicle + driver" in page and "Book on Imoova" in page
-    sydney = client.get("/home?from=Sydney").text   # the summary tiles still cover every city; the cards don't
-    assert '<div class="route">Sydney → Hobart</div>' in sydney
-    assert '<div class="route">Melbourne → Hobart</div>' not in sydney
-    assert "2 ways home to Hobart" in client.get("/").text
+    page = client.get("/routes").text                     # no query: the first saved route
+    assert all(f'<div class="route">{o} → Hobart</div>' in page for o in ("Sydney", "Melbourne", "Adelaide"))
+    assert "⛽ $250 fuel" in page and "included for the vehicle + driver" in page and "🔔 Alerts on" in page
+    sydney = client.get("/routes?from=Sydney&to=Hobart").text  # any vehicle, ferry or not
+    assert sydney.count('<div class="route">Sydney → Hobart</div>') == 2 and "Melbourne → Hobart</div>" not in sydney
+    assert "Alert me about this route" in sydney
+    r = client.post("/routes/watch?from=Sydney&to=Hobart")
+    assert r.status_code == 200 and "watch=" in str(r.url) and "🔔 Alerts on" in r.text
+    alerts_page = client.get("/alerts").text
+    assert "Sydney → Hobart · any vehicle" in alerts_page and "Anywhere → Hobart · ferry included" in alerts_page
+    wid = int(str(r.url).split("watch=")[1])
+    client.post(f"/alerts/route/{wid}?on=0")
+    with db.conn() as c:
+        assert c.execute("SELECT alert FROM watches WHERE id = %s", (wid,)).fetchone()["alert"] is False
+    client.post(f"/alerts/route/{wid}?delete=1")
+    with db.conn() as c:
+        assert c.execute("SELECT 1 FROM watches WHERE id = %s", (wid,)).fetchone() is None
+    assert client.get("/home").url.path == "/routes"
+
+
+def test_alert_switches_override_config(cfg):
+    from rcw import alerts, prefs
+    prefs.set_switch("digest", False)
+    prefs.set_switch("outage", False)
+    switched = prefs.apply(cfg)
+    assert switched["alerts"]["digest"] is False and switched["alerts"]["outage"] is False
+    assert digest.due(switched, T0 + timedelta(hours=6)) is False     # 09:00 UTC = 8 pm in Hobart
+    assert alerts.check_outages(switched, T0) == 0
+    prefs.set_switch("digest", True)
+    assert prefs.apply(cfg)["alerts"]["digest"] is True
 
 
 def test_digest_dry_run_and_duplicates(cfg, capsys):

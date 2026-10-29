@@ -51,8 +51,8 @@ trip:
                    Oodnadatta Track, Birdsville Track, Strzelecki Track, Mereenie Loop, Ernest Giles Road,
                    Old Telegraph Track]
 
-# Ways home: relocations into the home city with the ferry included, any vehicle. Shown at the top of the
-# dashboard with an estimated cost home, and each new one goes to Signal straight away.
+# Home: used once to create the first route alert (Anywhere -> Hobart, ferry included, any vehicle), and for the
+# cost estimate (passengers). Route alerts are managed on the Routes and Alerts pages after that.
 home:
   city: Hobart
   from_cities: []                  # empty = from anywhere, e.g. [Sydney, Melbourne]

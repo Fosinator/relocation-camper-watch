@@ -32,6 +32,9 @@
   {% elif not missed %}
   <div class="meta">Trip stats after the next poll</div>
   {% endif %}
+  {% if r.cost is defined and r.cost %}
+  <div class="meta" title="{% for lbl, amount in r.cost.parts %}{{ lbl }} ${{ amount }}{{ ' · ' if not loop.last }}{% endfor %}">About <strong>{{ r.cost.total|money }}</strong> out of pocket{% if r.cost.notes %} ({{ r.cost.notes|join('; ') }}){% endif %}</div>
+  {% endif %}
   <div class="meta">
     {% if missed %}Gone {{ r.gone_at|dt }} · was listed {{ ((r.last_seen - r.first_seen).total_seconds())|span }}
     {% else %}Seen since {{ r.first_seen|dt }}{% endif %}

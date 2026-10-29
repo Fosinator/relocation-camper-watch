@@ -4,15 +4,20 @@ Watches **Imoova** and **Transfercar** for motorhome and campervan relocations i
 relocations can be used to try motorhome layouts before buying one. Booking stays manual: no logins, no payments.
 
 - **Dashboard:** http://10.1.1.200 (home network only, no login)
-  - **Current:** open matches (starred first) with trip stats, From/To dropdowns, "↪ onward" links for chaining
-    relocations together, and missed opportunities from the last 2 days
-  - **Ways home:** relocations into Hobart with the ferry included, cheapest first, with the cost home
+  - **Current:** open matches with trip stats and the cost, From/To dropdowns, 8 sort orders, "↪ onward" links
+    for chaining relocations together, and missed opportunities from the last 2 days
+  - **Routes:** any start → finish (or anywhere), optionally ferry / fuel included or matches only, in any
+    vehicle, with the out-of-pocket cost. "Alert me about this route" saves it as a route alert.
   - **History:** matches that went more than 2 days ago (nothing is ever deleted)
   - **Stats:** matches per week, top routes, days included, time until gone, Hobart routes, polling health
-- **Signal:** one digest a day at 4 pm Hobart time, sent on quiet days too. It also carries site failures and a
-  database-size warning. The only other messages:
-  - a straight-away alert for each new way home to Hobart
+  - **Alerts:** switch each Signal message on or off; manage route alerts; recent messages
+- **Signal** (each switchable on the Alerts page):
+  - the daily digest at 4 pm Hobart time, sent on quiet days too, with site failures, a database-size warning
+    and a count per route alert
+  - a straight-away message for each new listing on a route alert. The first one, Anywhere → Hobart with the
+    ferry included, is seeded from config.yaml `home:`.
   - one alert if a site has had no good poll for 24 hours
+  - instant alerts for starred matches (off)
 - **Polls:** every hour from 6 am to 10 pm Hobart time, plus 0–2 min of random jitter. Each site is polled
   separately with its own back-off.
 
@@ -76,7 +81,7 @@ Run them inside the container: `docker exec -w /app relocation-camper-watch /ven
 | `digest --send` | send the digest now (honours dry-run) |
 | `outages` | run the 24-hour outage check now |
 | `trips` | recompute the trip stats now (fetching missing routes within the budget) |
-| `home` | list the ways home with their cost estimate (changes nothing) |
+| `routes` | list every route alert and what is on it (changes nothing) |
 
 **Dry-run mode:** set `alerts.dry_run: true` in config.yaml (or `DRY_RUN=1` in app.env). The digest and alerts
 then go to the container log (`docker logs relocation-camper-watch`) instead of Signal.
@@ -156,14 +161,31 @@ can sort by most room to explore.
 - A city without a map position shows "no map position for X". Add it to `CITY_COORDS` in `rcw/geo.py`
   (and to `KNOWN_CITIES` in `rcw/normalise.py`).
 
-## Ways home
+## Routes and route alerts
 
-A relocation into `home.city` (Hobart) with the Bass Strait ferry included is a cheap way home from the
-mainland. The hard filters don't apply here: any vehicle counts, including a hi-top or a car. They're on their
-own page (`/home`), cheapest first, with From filters. Each card has a short ferry summary, such as "sailing
-booked Geelong → Devonport 17 Nov 6:45pm" or "book your own, refunded up to $350", with the operator's full
-wording folded away. When the same van is on both sites (same origin, vehicle type, berths and first pickup
-day), it's shown once with both links.
+The Routes page (`/routes`) has Start and Finish dropdowns (or Anywhere), plus Ferry included, Fuel included and
+Matches only. The hard filters don't apply unless you tick Matches only, so any vehicle counts, including a hi-top
+or a car. Each card shows the out-of-pocket cost and a short ferry summary, such as "sailing booked Geelong →
+Devonport 17 Nov 6:45pm" or "book your own, refunded up to $350", with the operator's full wording folded
+away. The same van on both sites is shown once with both links. There are 7 sort orders.
+
+**Out of pocket** = hire ($1 a day) + the booking fee (Imoova states it; Transfercar doesn't) + fuel for the
+route less any fuel allowance + a ferry seat for each extra passenger (`home.passengers`) when the ferry is
+included and `home.extra_passenger_ferry_aud` is set. The ferry deals cover the vehicle and the driver only.
+
+**Route alerts:** "Alert me about this route" saves the current route. Each new listing on it then goes to
+Signal straight away, in one message per poll. A new route alert starts from a baseline (what's already listed
+counts as seen), so it never sends a backlog, and switching one off and on again doesn't either. The first
+route alert, Anywhere → Hobart with the ferry included, is created once from config.yaml `home:`. The Alerts
+page (`/alerts`) switches each one on or off, removes it, and also switches the digest, outage and
+starred-match alerts. Those switches are kept in the database and override config.yaml. Run
+`python -m rcw routes` to print every route alert and what's on it.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `home.city` / `home.require_ferry` / `home.alert` | `Hobart` / `true` / `true` | the first route alert (only used to create it) |
+| `home.passengers` | `2` | for the cost estimate |
+| `home.extra_passenger_ferry_aud` | `null` | seat price for each extra passenger |
 
 ## Chaining relocations
 
@@ -171,23 +193,6 @@ The Current page has From and To dropdowns. Each card shows "↪ N onward legs f
 start where it ends and pick up while you could be there. That window runs from the first pickup day plus the
 fewest days the drive takes at 9 h a day, to the last pickup day plus every included and extra day. Following
 the link shows those legs, and each of them shows its own onward legs (`rcw/chain.py`).
-
-**Cost home** = hire ($1 a day) + the booking fee (Imoova states it; Transfercar doesn't) + fuel for the route
-less any fuel allowance + a ferry seat for each extra passenger (`home.passengers`), if
-`home.extra_passenger_ferry_aud` is set. The ferry deals cover the vehicle and the driver only.
-
-**Signal:** each new way home goes out straight away, in one message per poll. The first run only takes a
-baseline, so switching it on doesn't send a backlog. `home.alert: false` turns it off; the digest still carries a
-count. Run `python -m rcw home` to print the current list with costs.
-
-| Field | Default | Meaning |
-|---|---|---|
-| `home.city` | `Hobart` | destination that counts as home |
-| `home.from_cities` | `[]` | only from these cities (empty = anywhere) |
-| `home.require_ferry` | `true` | only listings that include the ferry |
-| `home.alert` | `true` | instant Signal message for each new one |
-| `home.passengers` | `2` | for the cost estimate |
-| `home.extra_passenger_ferry_aud` | `null` | seat price for each extra passenger |
 
 ## Adding a third source
 

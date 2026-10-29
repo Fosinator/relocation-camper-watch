@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_card.html" import card %}
+{% from "_card.html" import card with context %}
 {% block main %}
 <h1>Current matches</h1>
 <p class="sub">{{ matches|length }} matching relocation{{ 's' if matches|length != 1 }} out of {{ open_total }} listed right now. Starred ones hit a keyword or include fuel or a ferry.</p>

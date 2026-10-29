@@ -46,6 +46,17 @@ def test_four_wd_setting(cfg):
     assert evaluate(row(), cfg, TODAY)["fail_reasons"] == "not 4WD"
 
 
+def test_excluded_vehicle_names(cfg):
+    for name in ["4 Berth-Hitop", "2 Berth Hi-Top", "4 Berth HiTop – Campervan (4 berth)",
+                 "Oc Active Poptop 4 Auto Select", "Pop Top Camper"]:
+        ev = evaluate(row(vehicle_type="campervan", vehicle_name=name), cfg, TODAY)
+        assert not ev["matched"] and ev["fail_reasons"].startswith("excluded: "), name
+    # only the name counts: a description mentioning a pop-top doesn't exclude a motorhome
+    assert evaluate(row(description="roomier than a pop-top"), cfg, TODAY)["matched"]
+    cfg["filters"]["exclude_keywords"] = []
+    assert evaluate(row(vehicle_name="2 Berth Hi-Top"), cfg, TODAY)["matched"]
+
+
 def test_boosts(cfg):
     ev = evaluate(row(vehicle_name="Avida Esperance", description="Rear lounge, drop down bed"), cfg, TODAY)
     assert ev["boosted"] and ev["boost_reasons"] == "rear lounge, drop-down bed, Avida"

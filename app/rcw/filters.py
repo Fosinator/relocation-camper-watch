@@ -1,14 +1,21 @@
-"""Hard filters and boosts (brief 2026-10-29, with David's changes the same day).
+"""Hard filters and boosts (brief 2026-10-29, with David's changes the same day: 2+ berths, a missing value
+passes, 4WD campers a setting, hi-tops and pop-tops excluded by vehicle name).
 
 A listing matches only if it passes every hard filter. A value the site doesn't show (berths, days, dates...)
 counts as passed and shows as **** (David: "assume that filter would have passed"). Boosts never filter
 anything out: a hit only adds a star, and starred matches are listed first.
 """
+import re
 from datetime import date, timedelta
 
 
 def _norm(s: str) -> str:
     return " ".join(s.lower().replace("-", " ").split())
+
+
+def _squash(s: str) -> str:
+    """Spaces and hyphens removed, so 'hitop' finds Hi-Top, Hi Top, HiTop and Hitop."""
+    return re.sub(r"[\s\-]+", "", s.lower())
 
 
 def evaluate(row: dict, cfg: dict, today: date) -> dict:
@@ -21,6 +28,10 @@ def evaluate(row: dict, cfg: dict, today: date) -> dict:
         fails.append("4WD")
     elif f["four_wd"] == "only" and not row.get("four_wd"):
         fails.append("not 4WD")
+    name = _squash(row.get("vehicle_name") or "")
+    excluded = [k for k in f["exclude_keywords"] if _squash(k) and _squash(k) in name]
+    if excluded:
+        fails.append(f"excluded: {', '.join(excluded)}")
     if row.get("berths") is not None and row["berths"] < f["min_berths"]:
         fails.append(f"{row['berths']} berths")
     cities = {c.lower() for c in f["cities"]}

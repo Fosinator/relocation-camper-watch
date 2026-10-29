@@ -23,6 +23,7 @@ DEFAULTS = {
         "cities": ["Hobart", "Melbourne", "Sydney", "Brisbane", "Adelaide", "Perth"],
         "min_days": 4,
         "pickup_within_days": 60,
+        "exclude_keywords": ["hitop", "poptop"],  # David 2026-10-29: hi-tops and pop-tops "probably aren't interested"
     },
     "boosts": {
         "keywords": ["rear lounge", "drop-down bed", "island bed", "Winnebago", "Avida", "Iveco", "Sprinter"],
@@ -68,6 +69,7 @@ def _check(cfg: dict) -> dict:
     if f["four_wd"] not in FOUR_WD_MODES:
         raise ValueError(f"filters.four_wd must be one of {', '.join(FOUR_WD_MODES)} (got {f['four_wd']!r})")
     f["vehicle_types"] = [str(t).lower() for t in f["vehicle_types"]]
+    f["exclude_keywords"] = [str(k) for k in (f["exclude_keywords"] or [])]
     for key in ("min_berths", "min_days", "pickup_within_days"):
         f[key] = int(f[key])
     hh, mm = str(cfg["schedule"]["digest_time"]).split(":")

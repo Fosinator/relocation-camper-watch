@@ -92,6 +92,7 @@ If the file has a mistake, the last good settings stay in use and the dashboard 
 | `filters.cities` | 6 capitals | the origin **or** destination must be one of these |
 | `filters.min_days` | `4` | included ($1/day or free) days |
 | `filters.pickup_within_days` | `60` | the earliest pickup must be within this many days |
+| `filters.exclude_keywords` | `[hitop, poptop]` | a vehicle name containing any of these never matches. Spaces and hyphens are ignored, so `hitop` also catches Hi-Top, Hi Top and HiTop. |
 | `boosts.keywords` | rear lounge, drop-down bed, island bed, Winnebago, Avida, Iveco, Sprinter | case-insensitive, in the vehicle name and description; a hit = ⭐ |
 | `boosts.inclusions` | `[fuel, ferry]` | inclusion words that give a ⭐ |
 | `schedule.poll_hours` | `"6-22"` | Hobart hours to poll, on the hour (cron hour format; needs a restart) |
@@ -111,8 +112,9 @@ If the file has a mistake, the last good settings stay in use and the dashboard 
 
 ## How matching works
 
-- **Hard filters** (all must pass): vehicle type, 4WD setting, berths, origin or destination city, included
-  days and pickup window. A value the site doesn't show counts as passed.
+- **Hard filters** (all must pass): vehicle type, 4WD setting, excluded vehicle names (hi-tops and pop-tops),
+  berths, origin or destination city, included days and pickup window. A value the site doesn't show counts as
+  passed.
 - **Open listings are re-checked at every poll** and before every digest, so config edits apply straight away,
   and a listing whose pickup date comes within 60 days becomes a match then.
 - **Gone:** missing from 2 successful polls in a row. A gone listing that reappears is open again.

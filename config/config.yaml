@@ -11,6 +11,8 @@ filters:
   cities: [Hobart, Melbourne, Sydney, Brisbane, Adelaide, Perth]   # the origin OR destination must be one
   min_days: 4                             # included ($1/day or free) days
   pickup_within_days: 60
+  exclude_keywords: [hitop, poptop]       # vehicle names containing these never match (spaces and hyphens
+                                          # are ignored, so "hitop" also catches Hi-Top, Hi Top and HiTop)
 
 # Boosts: a hit stars the listing (and lists it first). They never filter anything out.
 # Matched case-insensitively against the vehicle name and description; "-" and " " count as the same.

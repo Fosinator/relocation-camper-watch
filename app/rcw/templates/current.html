@@ -17,7 +17,7 @@
   {% for key, label in sorts.items() %}
     <a class="chip{{ ' on' if sort == key }}" href="?fourwd={{ fourwd }}&sort={{ key }}{{ '&all=1' if show_all }}">{{ label }}</a>
   {% endfor %}
-  <span class="meta" style="margin-left:12px">Hover or tap a pace badge for trip stats and detours.</span>
+  <span class="meta" style="margin-left:12px">Hover or tap a pace badge for trip stats.</span>
 </div>
 {% if cfg.filters.four_wd != 'include' %}<p class="meta">config.yaml filters 4WD campers: <strong>{{ cfg.filters.four_wd }}</strong>.</p>{% endif %}
 

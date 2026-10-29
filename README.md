@@ -113,10 +113,8 @@ If the file has a mistake, the last good settings stay in use and the dashboard 
 | `trip.comfortable_hours_per_day` / `busy_hours_per_day` / `max_hours_per_day` | `5` / `7` / `9` | pace bands |
 | `trip.camper_time_factor` | `1.15` | camper hours = routing-service car hours × this |
 | `trip.fuel_l_per_100km` / `fuel_price_per_litre` | 15 / 12 / 9 L, `$2.10` | fuel estimate |
-| `trip.max_detour_km` / `detours_per_listing` | `1500` / `10` | which sights get checked |
 | `trip.routing_requests_per_poll` | `60` | requests to the routing service per poll |
-| `trip.unsealed_roads` | 16 outback roads | routes using these are flagged |
-| `sights` | 34 places | detours to check: `{name, lat, lon}`, plus optional `via: [[lat, lon], ...]`. These are points the detour must pass going in (and, reversed, coming out) where the routing service would take an unsealed shortcut. Uluru and Kings Canyon go via Erldunda. |
+| `trip.unsealed_roads` | 16 outback roads | a route using one of these gets a note on its card |
 
 ## How matching works
 
@@ -141,21 +139,15 @@ can sort by most room to explore.
   route, kept for good in `road_routes`, at most `trip.routing_requests_per_poll` a poll.
 - **Pace:** driving hours a day over the included days. Comfortable ≤ 5 h, busy ≤ 7 h, rushed ≤ 9 h, beyond
   that too tight. Also the days a comfortable trip takes, and the extra days to buy (and their cost) if short.
-- **Explore:** spare km = (days × 5 h − driving hours) × the route's average speed, limited by the site's km
-  cap (Transfercar `kms_allowed`; Imoova `distance_allowed` plus its km per extra day). Also shown with every
-  extra day bought.
+- **Explore:** spare km = (days × 5 h − driving hours) × the route's average speed, or what the site's km
+  cap leaves beyond the route, whichever is smaller. The panel says which one limits it, the days or the km cap,
+  because a long relocation with a tight cap leaves little room to wander. Caps come from Transfercar
+  `kms_allowed` and from Imoova `distance_allowed` plus its km per extra day. Also shown with every extra day
+  bought, and with the per-km charge over the cap where the site states one.
 - **Fuel:** route km × L/100 km (motorhome 15, campervan 12) × $/L, against the listing's fuel allowance.
-- **Detours:** up to 10 `sights` from config.yaml whose rough detour is under 1,500 km are routed as
-  A → sight → B. Each is shown as one of:
-  - on the way
-  - fits comfortably
-  - fits at a busier pace
-  - needs N extra days (with the cost)
-  - over the km cap (with the excess cost when the site states a per-km rate)
-  - only via unsealed roads
-
-  The routing service happily uses outback tracks (it takes Darwin → Uluru → Perth along the Great Central
-  Road), so any route using a road in `trip.unsealed_roads` is flagged instead of trusted.
+- **Unsealed roads:** the routing service happily uses outback tracks (it takes Darwin → Uluru → Perth along
+  the Great Central Road), so a route using a road in `trip.unsealed_roads` gets a note instead of being
+  trusted.
 - A city without a map position shows "no map position for X". Add it to `CITY_COORDS` in `rcw/geo.py`
   (and to `KNOWN_CITIES` in `rcw/normalise.py`).
 

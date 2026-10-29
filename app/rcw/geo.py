@@ -5,12 +5,11 @@ one request per route, kept for good in road_routes, at most trip.routing_reques
 
 Two things the routing service gets wrong for relocations:
 - It happily uses outback tracks (Darwin -> Uluru -> Perth goes along the Great Central Road), which relocation
-  vehicles aren't allowed on. Every road name on a route is saved, and routes using a road in
-  trip.unsealed_roads are flagged rather than trusted.
+  vehicles aren't allowed on. Every road name on a route is saved, and a route using a road in
+  trip.unsealed_roads gets a note on its card rather than being trusted.
 - Ferry legs (Spirit of Tasmania) count as distance. They're kept apart from the driving km and hours.
 """
 import logging
-import math
 
 from . import normalise
 from .http import Blocked, Disallowed, Polite
@@ -45,27 +44,6 @@ def city_point(name: str | None) -> tuple[float, float] | None:
         if city.lower() == name.lower():
             return point
     return None
-
-
-def km_between(a: tuple[float, float], b: tuple[float, float]) -> float:
-    """Straight-line km (only used to pick which sights are worth asking the routing service about)."""
-    lat1, lon1, lat2, lon2 = map(math.radians, (*a, *b))
-    h = math.sin((lat2 - lat1) / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
-    return 6371 * 2 * math.asin(math.sqrt(h))
-
-
-def candidate_sights(a, b, sights: list[dict], max_km: float, limit: int) -> list[dict]:
-    """Sights whose rough detour (straight lines x 1.25 for roads) is under max_km, nearest first.
-    Sights within 30 km of either end are part of the trip, not a detour."""
-    out = []
-    for s in sights:
-        p = (s["lat"], s["lon"])
-        if km_between(a, p) < 30 or km_between(p, b) < 30:
-            continue
-        est = (km_between(a, p) + km_between(p, b) - km_between(a, b)) * 1.25
-        if est <= max_km:
-            out.append((est, s))
-    return [s for _, s in sorted(out, key=lambda x: x[0])[:limit]]
 
 
 def route_key(points) -> str:

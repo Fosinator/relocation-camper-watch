@@ -44,7 +44,7 @@ CREATE INDEX IF NOT EXISTS relocations_gone_idx ON relocations (gone_at);
 ALTER TABLE relocations ADD COLUMN IF NOT EXISTS km_allowed int;
 ALTER TABLE relocations ADD COLUMN IF NOT EXISTS km_per_extra_day int;
 ALTER TABLE relocations ADD COLUMN IF NOT EXISTS excess_km_rate numeric(6, 2);
-ALTER TABLE relocations ADD COLUMN IF NOT EXISTS trip jsonb;   -- trips.stats(): pace, explore km, fuel, detours
+ALTER TABLE relocations ADD COLUMN IF NOT EXISTS trip jsonb;   -- trips.stats(): pace, explore km, km cap, fuel
 
 -- Road distances from the routing service, kept for good (one request per route, ever).
 CREATE TABLE IF NOT EXISTS road_routes (

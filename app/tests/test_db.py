@@ -143,7 +143,7 @@ def test_trip_stats_refresh_caches_routes(cfg):
     first = trips.refresh(cfg, http=FakeRouting())
     t = rows()[0]["trip"]
     assert first["done"] == 1 and 3900 < t["route_km"] < 4100 and t["pace"] and t["cap_km"] == 4500
-    assert any(d["name"] == "Uluru" for d in t["detours"])
+    assert FakeRouting.calls == 1  # one route per listing
     calls = FakeRouting.calls
     trips.refresh(cfg, http=FakeRouting())
     assert FakeRouting.calls == calls  # every route came from road_routes the second time
@@ -156,19 +156,19 @@ def test_every_page_renders_with_trip_stats(cfg, monkeypatch):
 
     monkeypatch.setattr(config, "load", lambda path=None: cfg)
     src = Fake("transfercar", [listing("transfercar", "1", origin="Darwin", destination="Adelaide",
-                                       km_allowed=3400, excess_km_rate=0.5, extra_days=2, extra_day_price=75)])
+                                       km_allowed=3400, excess_km_rate=0.5, extra_days=4, extra_day_price=75)])
     run(src, cfg, T0)
     direct = {"drive_km": 3022, "drive_hours": 32.4, "ferry_km": 0, "roads": ["Stuart Highway"]}
-    uluru = {"drive_km": 3565, "drive_hours": 39.2, "ferry_km": 0, "roads": ["Lasseter Highway"]}
     with db.conn() as c:
-        c.execute("UPDATE relocations SET trip = %s", (db.Jsonb(trips.stats(rows()[0], direct, [("Uluru", uluru)], cfg)),))
+        c.execute("UPDATE relocations SET trip = %s", (db.Jsonb(trips.stats(rows()[0], direct, cfg)),))
     client = TestClient(web.app)  # no "with": the scheduler stays off
     for path in ["/", "/?sort=explore", "/?sort=soonest&fourwd=only", "/?all=1", "/history", "/history?all=1",
                  "/stats", "/stats?all=1"]:
         r = client.get(path)
         assert r.status_code == 200, (path, r.text[:300])
     page = client.get("/").text
-    assert "trip stats" in page and "Uluru" in page and "over the 3,400 km cap" in page
+    assert "trip stats" in page and "3,400 km: 378 km beyond the route" in page and "$0.50/km" in page
+    assert "limited by the days" in page and "limited by the km cap" in page
 
 
 def test_digest_dry_run_and_duplicates(cfg, capsys):

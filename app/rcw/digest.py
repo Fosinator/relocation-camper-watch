@@ -7,7 +7,7 @@ listed once with both links. The database size shows when it passes alerts.db_si
 import logging
 from datetime import datetime, timedelta, timezone
 
-from . import db, settings, signal, timefmt, trips
+from . import db, home, settings, signal, timefmt, trips
 from .sources import SOURCES
 
 log = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ def item_lines(r: dict, dups: list[dict] = ()) -> list[str]:
 
 
 def format_digest(day, new: list[dict], dups: dict[int, list[dict]], gone: int, problems: list[str],
-                  db_mb: float | None, cfg: dict, dashboard: str) -> str:
+                  db_mb: float | None, cfg: dict, dashboard: str, home_count: int = 0) -> str:
     """The message text (pure, so it can be tested and previewed)."""
     starred = sum(1 for r in new if r["boosted"])
     lines = [f"Relocations – {day:%a} {day.day} {day:%b}",
@@ -57,6 +57,9 @@ def format_digest(day, new: list[dict], dups: dict[int, list[dict]], gone: int, 
             lines += item_lines(r, dups.get(r["id"], []))
         if len(new) > limit:
             lines.append(f"+ {len(new) - limit} more on the dashboard")
+    if home_count:
+        lines += ["", f"🏠 {home_count} way{'s' if home_count != 1 else ''} home to {cfg['home']['city']} listed "
+                      f"(on the dashboard)"]
     if problems:
         lines += [""] + [f"⚠ {p}" for p in problems]
     if db_mb is not None and db_mb > float(cfg["alerts"]["db_size_warn_mb"]):
@@ -98,8 +101,9 @@ def build(c, cfg: dict, now) -> dict:
     gone = c.execute("""SELECT count(*) AS n FROM relocations WHERE matched AND dup_of IS NULL AND gone_at > %s""",
                      (last,)).fetchone()["n"]
     since = last if last > EPOCH else now - timedelta(days=1)
+    ways_home = len(home.group(home.open_rows(c, cfg, timefmt.today(now)))) if cfg["home"].get("city") else 0
     text = format_digest(timefmt.today(now), new, dups, gone, _problems(c, since), db.db_size_mb(c), cfg,
-                         settings.DASHBOARD_URL)
+                         settings.DASHBOARD_URL, ways_home)
     return {"text": text, "ids": ids + [d["id"] for v in dups.values() for d in v], "new": len(new),
             "starred": sum(1 for r in new if r["boosted"]), "gone": gone}
 

@@ -51,6 +51,16 @@ trip:
                    Oodnadatta Track, Birdsville Track, Strzelecki Track, Mereenie Loop, Ernest Giles Road,
                    Old Telegraph Track]
 
+# Ways home: relocations into the home city with the ferry included, any vehicle. Shown at the top of the
+# dashboard with an estimated cost home, and each new one goes to Signal straight away.
+home:
+  city: Hobart
+  from_cities: []                  # empty = from anywhere, e.g. [Sydney, Melbourne]
+  require_ferry: true
+  alert: true                      # instant Signal message for each new way home
+  passengers: 2                    # the ferry deals cover the vehicle + driver; the others pay their own seat
+  extra_passenger_ferry_aud: null  # put a seat price here to add it to the cost estimate
+
 sources:
   imoova:
     enabled: true

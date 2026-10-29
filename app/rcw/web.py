@@ -12,7 +12,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from . import config, db, scheduler, settings, signal, stats, timefmt, trips
+from . import config, db, home, scheduler, settings, signal, stats, timefmt, trips
 from .sources import SOURCES
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -91,6 +91,7 @@ def current(request: Request, fourwd: str = "", all: int = 0, sort: str = "starr
         others = c.execute("""SELECT * FROM relocations WHERE status = 'open' AND NOT matched
                               ORDER BY vehicle_type, origin, destination""").fetchall() if all else []
         open_total = c.execute("SELECT count(*) AS n FROM relocations WHERE status = 'open'").fetchone()["n"]
+        ways_home = home.group(home.open_rows(c, cfg, timefmt.today()))
 
         def view_ok(r):
             return view == "include" or (view == "only") == bool(r["four_wd"])
@@ -102,7 +103,7 @@ def current(request: Request, fourwd: str = "", all: int = 0, sort: str = "starr
             matches.sort(key=lambda r: (r["pickup_from"] is None, r["pickup_from"]))
         return _page(request, "current.html", cfg, c, page="current", matches=matches, missed=missed,
                      others=others, show_all=bool(all), fourwd=view, open_total=open_total, keep_days=keep_days,
-                     sort=sort, sorts=SORTS)
+                     sort=sort, sorts=SORTS, ways_home=ways_home)
 
 
 @app.get("/history", response_class=HTMLResponse)

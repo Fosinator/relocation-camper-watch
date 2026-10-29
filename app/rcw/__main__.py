@@ -6,6 +6,7 @@
   digest --send                 send the digest now (honours dry-run in config.yaml / DRY_RUN=1)
   outages                       run the 24-hour outage check now
   trips                         recompute the trip stats now (fetching missing routes within the budget)
+  home                          list the ways home with their cost estimate (changes nothing)
 """
 import argparse
 import logging
@@ -49,6 +50,7 @@ def main(argv=None) -> int:
     g.add_argument("--send", action="store_true")
     sub.add_parser("outages")
     sub.add_parser("trips")
+    sub.add_parser("home")
     a = p.parse_args(argv)
     cfg = config.load()
 
@@ -73,6 +75,13 @@ def main(argv=None) -> int:
     elif a.cmd == "trips":
         from . import trips
         print(trips.refresh(cfg))
+    elif a.cmd == "home":
+        from . import home
+        with db.conn() as c:
+            deals = home.group(home.open_rows(c, cfg, timefmt.today()))
+        print(f"{len(deals)} ways home to {cfg['home']['city']}\n")
+        for d in deals:
+            print("\n".join(home.message_lines(d)) + "\n")
     return 0
 
 

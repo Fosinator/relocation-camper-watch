@@ -4,11 +4,14 @@ Watches **Imoova** and **Transfercar** for motorhome and campervan relocations i
 relocations can be used to try motorhome layouts before buying one. Booking stays manual: no logins, no payments.
 
 - **Dashboard:** http://10.1.1.200 (home network only, no login)
-  - **Current:** open matches (starred first) and missed opportunities from the last 2 days
+  - **Current:** ways home to Hobart first, then open matches (starred first) with trip stats, and missed
+    opportunities from the last 2 days
   - **History:** matches that went more than 2 days ago (nothing is ever deleted)
   - **Stats:** matches per week, top routes, days included, time until gone, Hobart routes, polling health
 - **Signal:** one digest a day at 4 pm Hobart time, sent on quiet days too. It also carries site failures and a
-  database-size warning. The only other message is one alert if a site has had no good poll for 24 hours.
+  database-size warning. The only other messages:
+  - a straight-away alert for each new way home to Hobart
+  - one alert if a site has had no good poll for 24 hours
 - **Polls:** every hour from 6 am to 10 pm Hobart time, plus 0–2 min of random jitter. Each site is polled
   separately with its own back-off.
 
@@ -72,6 +75,7 @@ Run them inside the container: `docker exec -w /app relocation-camper-watch /ven
 | `digest --send` | send the digest now (honours dry-run) |
 | `outages` | run the 24-hour outage check now |
 | `trips` | recompute the trip stats now (fetching missing routes within the budget) |
+| `home` | list the ways home with their cost estimate (changes nothing) |
 
 **Dry-run mode:** set `alerts.dry_run: true` in config.yaml (or `DRY_RUN=1` in app.env). The digest and alerts
 then go to the container log (`docker logs relocation-camper-watch`) instead of Signal.
@@ -150,6 +154,30 @@ can sort by most room to explore.
   trusted.
 - A city without a map position shows "no map position for X". Add it to `CITY_COORDS` in `rcw/geo.py`
   (and to `KNOWN_CITIES` in `rcw/normalise.py`).
+
+## Ways home
+
+A relocation into `home.city` (Hobart) with the Bass Strait ferry included is a cheap way home from the
+mainland. The hard filters don't apply here: any vehicle counts, including a hi-top or a car. The Current page
+lists them first. When the same van is on both sites (same origin, vehicle type, berths and first pickup day),
+it's shown once with both links.
+
+**Cost home** = hire ($1 a day) + the booking fee (Imoova states it; Transfercar doesn't) + fuel for the route
+less any fuel allowance + a ferry seat for each extra passenger (`home.passengers`), if
+`home.extra_passenger_ferry_aud` is set. The ferry deals cover the vehicle and the driver only.
+
+**Signal:** each new way home goes out straight away, in one message per poll. The first run only takes a
+baseline, so switching it on doesn't send a backlog. `home.alert: false` turns it off; the digest still carries a
+count. Run `python -m rcw home` to print the current list with costs.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `home.city` | `Hobart` | destination that counts as home |
+| `home.from_cities` | `[]` | only from these cities (empty = anywhere) |
+| `home.require_ferry` | `true` | only listings that include the ferry |
+| `home.alert` | `true` | instant Signal message for each new one |
+| `home.passengers` | `2` | for the cost estimate |
+| `home.extra_passenger_ferry_aud` | `null` | seat price for each extra passenger |
 
 ## Adding a third source
 

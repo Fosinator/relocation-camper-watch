@@ -169,6 +169,25 @@ def test_every_page_renders_with_trip_stats(cfg, monkeypatch):
     page = client.get("/").text
     assert "trip stats" in page and "3,400 km: 378 km beyond the route" in page and "$0.50/km" in page
     assert "limited by the days" in page and "limited by the km cap" in page
+    assert "Ways home to Hobart" in page and "No ways home to Hobart listed right now." in page
+
+
+def test_ways_home_baseline_then_one_alert_each(cfg, capsys):
+    cfg["alerts"]["dry_run"] = True
+    ferry = "Ferry included Free ferry for vehicle and driver"
+    src = Fake("imoova", [listing("imoova", "1", origin="Sydney", destination="Hobart", inclusions=ferry),
+                          listing("imoova", "2", origin="Sydney", destination="Hobart")])   # no ferry: not a way home
+    run(src, cfg, T0)                       # first run: baseline, nothing sent
+    assert "New way home" not in capsys.readouterr().out
+    src.listings.append(listing("imoova", "3", origin="Melbourne", destination="Hobart", berths=1,
+                                vehicle_type="other", inclusions="Fuel $250 · " + ferry))  # any vehicle counts
+    run(src, cfg, T0 + timedelta(hours=1))
+    out = capsys.readouterr().out
+    assert "🏠 New way home to Hobart" in out and "Melbourne → Hobart" in out and "Sydney" not in out
+    assert "⛽ fuel $250" in out
+    run(src, cfg, T0 + timedelta(hours=2))  # already alerted: nothing more
+    assert "New way home" not in capsys.readouterr().out
+    assert "🏠 2 ways home to Hobart listed" in digest.preview(cfg, T0 + timedelta(hours=2))
 
 
 def test_digest_dry_run_and_duplicates(cfg, capsys):

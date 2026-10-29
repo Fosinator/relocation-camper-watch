@@ -46,6 +46,9 @@ ALTER TABLE relocations ADD COLUMN IF NOT EXISTS km_per_extra_day int;
 ALTER TABLE relocations ADD COLUMN IF NOT EXISTS excess_km_rate numeric(6, 2);
 ALTER TABLE relocations ADD COLUMN IF NOT EXISTS trip jsonb;   -- trips.stats(): pace, explore km, km cap, fuel
 
+-- 2026-10-29: ways home (relocations into Hobart with the ferry included) get one instant Signal alert each
+ALTER TABLE relocations ADD COLUMN IF NOT EXISTS home_alerted_at timestamptz;
+
 -- Road distances from the routing service, kept for good (one request per route, ever).
 CREATE TABLE IF NOT EXISTS road_routes (
     key          text PRIMARY KEY,        -- "lon,lat;lon,lat[;...]" rounded to 4 places

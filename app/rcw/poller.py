@@ -7,7 +7,7 @@ if the site refuses us (403 / 429) it backs off for a day.
 import logging
 from datetime import timedelta
 
-from . import alerts, config, db, timefmt, trips
+from . import alerts, config, db, home, timefmt, trips
 from .http import Blocked, Disallowed, Polite
 from .sources import SOURCES, SourceError
 
@@ -69,10 +69,14 @@ def poll(name: str, *, cfg: dict | None = None, src=None, http=None, force: bool
         db.link_duplicates(c)
         db.source_ok(c, name, now, len(listings))
     try:
-        trips.refresh(cfg)
+        trips.refresh(cfg, today=today)
     except Exception:  # noqa: BLE001 - trip stats are extra; a routing problem must not fail the poll
         log.exception("trip stats failed")
     sent = alerts.instant(cfg, now)
+    try:
+        sent += home.alert_new(cfg, now, today)
+    except Exception:  # noqa: BLE001
+        log.exception("ways home alert failed")
     result.update(ok=True, listings_found=len(listings), new_listings=stats["new"], new_matches=stats["new_matches"],
                   gone=stats["gone"], alerts_sent=sent, requests=getattr(http, "requests", None))
     with db.conn() as c:

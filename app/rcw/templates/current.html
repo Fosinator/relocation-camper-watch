@@ -1,6 +1,32 @@
 {% extends "base.html" %}
 {% from "_card.html" import card with context %}
 {% block main %}
+{% if cfg.home.city %}
+<h1>🏠 Ways home to {{ cfg.home.city }}</h1>
+<p class="sub">Relocations into {{ cfg.home.city }}{% if cfg.home.require_ferry %} with the ferry included{% endif %}, any vehicle. The ferry deals cover the vehicle and driver; {% if cfg.home.passengers > 1 %}{{ cfg.home.passengers - 1 }} more passenger{{ 's' if cfg.home.passengers > 2 }} pay{{ 's' if cfg.home.passengers == 2 }} their own seat. {% endif %}New ones go to Signal straight away.</p>
+{% if ways_home %}
+<div class="tablewrap"><table>
+  <tr><th>From</th><th>Vehicle</th><th class="num">Days</th><th>Pick up</th><th>Ferry</th><th>Fuel</th><th>Drive</th><th class="num">About</th><th>Book</th></tr>
+  {% for r in ways_home %}
+  {% set c = r.home_cost %}
+  <tr>
+    <td><strong>{{ r.origin or '****' }}</strong></td>
+    <td class="wrap-cell">{{ r.vehicle_name or '****' }}{% if r.berths %} · {{ r.berths }} berths{% endif %}</td>
+    <td class="num">{{ r.days_included|stars }}{% if r.extra_days %} +{{ r.extra_days }}{% endif %}</td>
+    <td>{{ r.pickup_from|d }} – {{ r.pickup_to|d }}</td>
+    <td class="wrap-cell">{{ r.ferry }}</td>
+    <td>{{ r.fuel_allowance|money if r.fuel_allowance else '—' }}</td>
+    <td>{% if r.trip and r.trip.pace %}{{ r.trip.drive_hours }} h · {{ r.trip.pace }}{% else %}—{% endif %}</td>
+    <td class="num" title="{% for label, amount in c.parts %}{{ label }} ${{ amount }}{{ '; ' if not loop.last }}{% endfor %}{% for n in c.notes %}; {{ n }}{% endfor %}"><strong>{{ c.total|money }}</strong>{% if c.notes %}<br><span class="meta">{{ c.notes|join('; ') }}</span>{% endif %}</td>
+    <td><a href="{{ r.url }}" target="_blank" rel="noopener">{{ source_label(r.source) }}</a>{% for a in r.also %}<br><a href="{{ a.url }}" target="_blank" rel="noopener">{{ source_label(a.source) }}</a>{% endfor %}</td>
+  </tr>
+  {% endfor %}
+</table></div>
+{% else %}
+  <div class="empty">No ways home to {{ cfg.home.city }} listed right now.</div>
+{% endif %}
+{% endif %}
+
 <h1>Current matches</h1>
 <p class="sub">{{ matches|length }} matching relocation{{ 's' if matches|length != 1 }} out of {{ open_total }} listed right now. Starred ones hit a keyword or include fuel or a ferry.</p>
 <div class="tools">

@@ -65,6 +65,18 @@ DEFAULTS = {
                            "Sandover Highway", "Buchanan Highway", "Oodnadatta Track", "Birdsville Track",
                            "Strzelecki Track", "Mereenie Loop", "Ernest Giles Road", "Old Telegraph Track"],
     },
+    # Ways home (David 2026-10-29: "if I could get ferry and fuel it would be a cheap way to get home from
+    # sydney"): relocations into the home city with the ferry included, any vehicle (a hi-top or a car is fine
+    # for getting home), shown at the top of the dashboard with an estimated cost, plus an instant Signal
+    # alert for each new one - the one exception to digest-only while gathering data.
+    "home": {
+        "city": "Hobart",
+        "from_cities": [],               # empty = from anywhere
+        "require_ferry": True,
+        "alert": True,
+        "passengers": 2,                 # the ferry deals cover the vehicle + driver; others pay their own seat
+        "extra_passenger_ferry_aud": None,  # set it to add those seats to the cost estimate
+    },
 }
 
 FOUR_WD_MODES = ("include", "exclude", "only")

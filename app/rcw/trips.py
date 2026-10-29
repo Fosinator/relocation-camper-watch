@@ -102,15 +102,19 @@ def badge(trip: dict | None) -> str | None:
     return text
 
 
-def refresh(cfg: dict, http=None) -> dict:
-    """Recompute the trip stats of every open match, fetching missing routes within the request budget."""
+def refresh(cfg: dict, http=None, today=None) -> dict:
+    """Recompute the trip stats of every open match and every way home (which may not match the filters),
+    fetching missing routes within the request budget."""
+    from . import home, timefmt  # home uses fuel_allowance() from here
+
     t = cfg["trip"]
     done = waiting = 0
+    home_cond, params = home.where(cfg, today or timefmt.today())
     with db.conn() as c:
         router = geo.Router(c, int(t["routing_requests_per_poll"]), http)
         try:
-            rows = c.execute("""SELECT * FROM relocations WHERE status = 'open' AND matched
-                                ORDER BY boosted DESC, first_seen DESC""").fetchall()
+            rows = c.execute(f"""SELECT * FROM relocations WHERE status = 'open' AND (matched OR ({home_cond}))
+                                 ORDER BY boosted DESC, first_seen DESC""", params).fetchall()
             for r in rows:
                 a, b = geo.city_point(r["origin"]), geo.city_point(r["destination"])
                 if not a or not b:

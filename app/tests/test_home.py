@@ -54,6 +54,15 @@ def test_same_van_on_both_sites_is_one_deal(cfg):
     assert lines[3].startswith("Imoova: https://") and lines[4].startswith("Transfercar: https://")
 
 
+def test_long_ferry_text_is_shortened_in_the_message(cfg):
+    long = ("Ferry included This relocation includes reimbursement for the ferry ticket for the vehicle and 1 "
+            "driver in a recliner seat up to $350. Cabin upgades or additional passengers will NOT be reimbursed.")
+    r = row(inclusions=long)
+    r.update(also=[], home_cost=home.cost(r, cfg), ferry=home.ferry_text(long), fuel_allowance=None)
+    line = home.message_lines(r)[1]
+    assert len(line) < 100 and line.endswith("…") and line.startswith("⛴ ferry This relocation includes")
+
+
 def test_where_from_cities(cfg):
     cond, params = home.where(cfg, date(2026, 10, 29))
     assert "ferry" in cond and "home_from" not in params

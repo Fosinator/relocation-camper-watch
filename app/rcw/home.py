@@ -105,10 +105,13 @@ def message_lines(r: dict) -> list[str]:
     label = SOURCES[r["source"]].label if r["source"] in SOURCES else r["source"]
     vehicle = f"{r['berths']}-berth {r['vehicle_type']}" if r["berths"] else (r["vehicle_name"] or r["vehicle_type"])
     fuel = f" · ⛽ fuel ${r['fuel_allowance']:,.0f}" if r["fuel_allowance"] else ""
+    ferry = r["ferry"] or "included"
+    if len(ferry) > 90:  # some operators write a paragraph; the full text is on the dashboard
+        ferry = ferry[:88].rsplit(" ", 1)[0] + "…"
     c = r["home_cost"]
     lines = [f"{r['origin'] or '****'} → {r['destination']} · {vehicle} · {r['days_included'] or '****'} days · "
              f"pick up {r['pickup_from']:%-d %b}" if r["pickup_from"] else f"{r['origin']} → {r['destination']}",
-             f"⛴ ferry {r['ferry'] or 'included'}{fuel}",
+             f"⛴ ferry {ferry}{fuel}",
              f"About ${c['total']:,} out of pocket" + (f" ({'; '.join(c['notes'])})" if c["notes"] else ""),
              f"{label}: {r['url']}"]
     lines += [f"{SOURCES[a['source']].label if a['source'] in SOURCES else a['source']}: {a['url']}"

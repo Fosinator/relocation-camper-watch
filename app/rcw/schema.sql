@@ -46,6 +46,10 @@ ALTER TABLE relocations ADD COLUMN IF NOT EXISTS km_per_extra_day int;
 ALTER TABLE relocations ADD COLUMN IF NOT EXISTS excess_km_rate numeric(6, 2);
 ALTER TABLE relocations ADD COLUMN IF NOT EXISTS trip jsonb;   -- trips.stats(): pace, explore km, km cap, fuel
 
+-- 2026-10-30: New Zealand. Prices are in the listing's own currency.
+ALTER TABLE relocations ADD COLUMN IF NOT EXISTS region text NOT NULL DEFAULT 'AU';
+ALTER TABLE relocations ADD COLUMN IF NOT EXISTS currency text NOT NULL DEFAULT 'AUD';
+
 -- 2026-10-29: ways home (relocations into Hobart with the ferry included) get one instant Signal alert each
 ALTER TABLE relocations ADD COLUMN IF NOT EXISTS home_alerted_at timestamptz;
 

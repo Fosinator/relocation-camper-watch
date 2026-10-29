@@ -1,6 +1,6 @@
 # Relocation Camper Watch
 
-Watches **Imoova** and **Transfercar** for motorhome and campervan relocations in Australia, so short $1/day
+Watches **Imoova** and **Transfercar** for motorhome and campervan relocations in Australia and New Zealand, so short $1/day
 relocations can be used to try motorhome layouts before buying one. Booking stays manual: no logins, no payments.
 
 - **Dashboard:** http://10.1.1.200 (home network only, no login)
@@ -100,7 +100,9 @@ If the file has a mistake, the last good settings stay in use and the dashboard 
 | `filters.vehicle_types` | `[motorhome, campervan]` | normalised types that can match (`motorhome`, `campervan`, `other`) |
 | `filters.four_wd` | `include` | 4WD campers: `include`, `exclude` or `only`. The dashboard also has a view toggle. |
 | `filters.min_berths` | `2` | fewer berths fails; not shown = passes |
-| `filters.cities` | 6 capitals | the origin **or** destination must be one of these |
+| `regions` | `[AU, NZ]` | regions watched. Imoova lists both on one page; Transfercar NZ (transfercar.co.nz) is polled as its own source. NZ prices are in NZD, shown as NZ$. |
+| `filters.cities` | 6 capitals | Australia: the origin **or** destination must be one of these |
+| `filters.cities_nz` | `[]` | New Zealand: the same; empty = any city |
 | `filters.min_days` | `4` | included ($1/day or free) days |
 | `filters.pickup_within_days` | `60` | the earliest pickup must be within this many days |
 | `filters.exclude_keywords` | `[hitop, poptop]` | a vehicle name containing any of these never matches. Spaces and hyphens are ignored, so `hitop` also catches Hi-Top, Hi Top and HiTop. |
@@ -122,7 +124,7 @@ If the file has a mistake, the last good settings stay in use and the dashboard 
 | `sources.<site>.details_per_poll` | `40` | detail requests per poll, for new motorhomes and campervans |
 | `trip.comfortable_hours_per_day` / `busy_hours_per_day` / `max_hours_per_day` | `5` / `7` / `9` | pace bands |
 | `trip.camper_time_factor` | `1.15` | camper hours = routing-service car hours × this |
-| `trip.fuel_l_per_100km` / `fuel_price_per_litre` | 15 / 12 / 9 L, `$2.10` | fuel estimate |
+| `trip.fuel_l_per_100km` / `fuel_price_per_litre` | 15 / 12 / 9 L, `{AU: 2.10, NZ: 2.60}` | fuel estimate, in each region's own dollars |
 | `trip.routing_requests_per_poll` | `60` | requests to the routing service per poll |
 | `trip.unsealed_roads` | 16 outback roads | a route using one of these gets a note on its card |
 

@@ -169,7 +169,7 @@ def test_every_page_renders_with_trip_stats(cfg, monkeypatch):
     for path in ["/", "/?sort=explore", "/?sort=soonest&fourwd=only", "/?all=1", "/?from=Darwin&to=Adelaide",
                  f"/?after={rows()[0]['id']}", "/?from=Nowhere", "/?sort=cost", "/?sort=easy", "/?sort=fuel",
                  "/?sort=newest", "/home", "/routes", "/routes?from=Darwin&to=Adelaide&sort=easy",
-                 "/routes?ferry=1&fuel=1&matches=1", "/alerts",
+                 "/routes?ferry=1&fuel=1&matches=1", "/alerts", "/?region=NZ", "/?region=AU&from=Darwin",
                  "/history", "/history?all=1", "/stats", "/stats?all=1"]:
         r = client.get(path)
         assert r.status_code == 200, (path, r.text[:300])

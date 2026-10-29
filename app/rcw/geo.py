@@ -33,8 +33,22 @@ CITY_COORDS = {
     "Coffs Harbour": (-30.2963, 153.1135), "Port Macquarie": (-31.4308, 152.9089), "Mildura": (-34.2080, 142.1246),
     "Whyalla": (-33.0333, 137.5833), "Bairnsdale": (-37.8227, 147.6100), "Kalgoorlie": (-30.7489, 121.4658),
     "Whitsunday Coast": (-20.4017, 148.5815),
+    # New Zealand (2026-10-30)
+    "Auckland": (-36.8485, 174.7633), "Wellington": (-41.2865, 174.7762), "Christchurch": (-43.5321, 172.6362),
+    "Queenstown": (-45.0312, 168.6626), "Dunedin": (-45.8788, 170.5028), "Invercargill": (-46.4132, 168.3538),
+    "Nelson": (-41.2706, 173.2840), "Picton": (-41.2906, 174.0001), "Greymouth": (-42.4504, 171.2108),
+    "Hokitika": (-42.7172, 170.9655), "Blenheim": (-41.5134, 173.9612), "Kaikoura": (-42.4008, 173.6814),
+    "Rotorua": (-38.1368, 176.2497), "Tauranga": (-37.6878, 176.1651), "Napier": (-39.4928, 176.9120),
+    "Hamilton": (-37.7870, 175.2793), "Palmerston North": (-40.3523, 175.6082), "New Plymouth": (-39.0556, 174.0752),
+    "Whakatane": (-37.9530, 176.9910), "Taupo": (-38.6857, 176.0702), "Gisborne": (-38.6623, 178.0176),
+    "Whangarei": (-35.7251, 174.3237), "Te Anau": (-45.4144, 167.7180), "Wanaka": (-44.7032, 169.1321),
+    "Timaru": (-44.3970, 171.2550), "Oamaru": (-45.0975, 170.9714), "Pokeno": (-37.2460, 175.0200),
+    "Kerikeri": (-35.2268, 173.9474), "Paihia": (-35.2820, 174.0910), "Westport": (-41.7545, 171.6010),
+    "Twizel": (-44.2560, 170.1000), "Ashburton": (-43.9030, 171.7480), "Masterton": (-40.9597, 175.6575),
+    "Whanganui": (-39.9300, 175.0479), "Levin": (-40.6220, 175.2860), "Thames": (-37.1383, 175.5404),
 }
-assert set(normalise.KNOWN_CITIES) <= set(CITY_COORDS), set(normalise.KNOWN_CITIES) - set(CITY_COORDS)
+_ALL = set(normalise.KNOWN_CITIES) | set(normalise.KNOWN_CITIES_NZ)
+assert _ALL <= set(CITY_COORDS), _ALL - set(CITY_COORDS)
 
 
 def city_point(name: str | None) -> tuple[float, float] | None:

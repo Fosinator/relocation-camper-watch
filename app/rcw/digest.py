@@ -20,7 +20,7 @@ def _money(v) -> str:
 
 
 def item_lines(r: dict, dups: list[dict] = ()) -> list[str]:
-    star = "⭐ " if r["boosted"] else ""
+    star = ("⭐ " if r["boosted"] else "") + ("🇳🇿 " if r.get("region") == "NZ" else "")
     vehicle = r["vehicle_type"] if r["vehicle_type"] != "other" else (r["vehicle_name"] or "vehicle")
     if r["four_wd"]:
         vehicle = "4WD " + vehicle

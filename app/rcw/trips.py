@@ -85,7 +85,9 @@ def stats(row: dict, direct: dict, cfg: dict) -> dict:
             out["all_extra_cost"] = round(extra * price) if price is not None else None
 
     litres = km * float(t["fuel_l_per_100km"].get(row.get("vehicle_type") or "other", 12)) / 100
-    out["fuel_cost"] = round(litres * float(t["fuel_price_per_litre"]))
+    prices = t["fuel_price_per_litre"]
+    price = prices.get(row.get("region") or "AU", prices.get("AU", 2.10)) if isinstance(prices, dict) else prices
+    out["fuel_cost"] = round(litres * float(price))   # in the listing's own currency
     allowance = fuel_allowance(row.get("inclusions"))
     out["fuel_allowance"] = allowance
     out["fuel_cover_pct"] = min(100, round(100 * allowance / out["fuel_cost"])) if allowance and out["fuel_cost"] else 0

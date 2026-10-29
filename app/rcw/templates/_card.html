@@ -1,14 +1,14 @@
 {% macro card(r, missed=false) %}
 <article class="card{{ ' star' if r.boosted }}{{ ' gone' if missed }}">
-  <div class="route">{{ r.origin or '****' }} → {{ r.destination or '****' }}</div>
+  <div class="route">{{ '🇳🇿 ' if r.region == 'NZ' }}{{ r.origin or '****' }} → {{ r.destination or '****' }}</div>
   {% if r.boosted %}<div><span class="boost">⭐ {{ r.boost_reasons }}</span></div>{% endif %}
   <div>{{ r.vehicle_name or '****' }}</div>
   <dl class="facts">
     <dt>Type</dt><dd>{{ '4WD ' if r.four_wd }}{{ r.vehicle_type }} · {{ r.berths|stars }} berths</dd>
-    <dt>Days</dt><dd>{{ r.days_included|stars }} included{% if r.extra_days %} + up to {{ r.extra_days }} extra at {{ r.extra_day_price|money }}/day{% endif %}</dd>
+    <dt>Days</dt><dd>{{ r.days_included|stars }} included{% if r.extra_days %} + up to {{ r.extra_days }} extra at {{ r.extra_day_price|money(r.currency) }}/day{% endif %}</dd>
     <dt>Pick up</dt><dd>{{ r.pickup_from|d }} – {{ r.pickup_to|d }}</dd>
     {% if r.inclusions %}<dt>Includes</dt><dd>{{ r.inclusions }}</dd>{% endif %}
-    {% if r.bond is not none %}<dt>Bond</dt><dd>{{ r.bond|money }}</dd>{% endif %}
+    {% if r.bond is not none %}<dt>Bond</dt><dd>{{ r.bond|money(r.currency) }}</dd>{% endif %}
     {% if r.operator %}<dt>Operator</dt><dd>{{ r.operator }}</dd>{% endif %}
   </dl>
   {% set t = r.trip %}
@@ -19,10 +19,10 @@
       <dl class="facts">
         <dt>Route</dt><dd>{{ t.route_km|km }} · {{ t.drive_hours }} h driving{% if t.ferry %} + Bass Strait ferry{% endif %}</dd>
         <dt>Needs</dt><dd>{{ t.hours_per_day }} h ({{ t.km_per_day|km }}) a day over {{ r.days_included }} days</dd>
-        <dt>Comfortable</dt><dd>{{ t.comfortable_days }} days at {{ cfg.trip.comfortable_hours_per_day }} h a day{% if t.days_short %}: {{ t.days_short }} short{% if t.buy_days %}, buy {{ t.buy_days }} extra{% if t.buy_cost is not none %} ({{ t.buy_cost|money }}){% endif %}{% endif %}{% endif %}</dd>
-        <dt>Explore</dt><dd>{{ t.explore_km|km }} spare, limited by the {{ t.explore_limit }}{% if t.explore_km_all_extra is defined %} · {{ t.explore_km_all_extra|km }} with all {{ r.extra_days }} extra days{% if t.all_extra_cost is not none %} ({{ t.all_extra_cost|money }}){% endif %}{% if t.explore_limit_all_extra == 'km cap' %}, limited by the km cap{% endif %}{% endif %}</dd>
-        <dt>Km cap</dt><dd>{% if t.cap_km %}{{ t.cap_km|km }}: {% if t.over_cap_km %}<span class="bad-text">{{ t.over_cap_km|km }} short of the route itself</span>{% if t.over_cap_cost %} (about {{ t.over_cap_cost|money }} in excess km){% endif %}{% else %}{{ t.cap_spare_km|km }} beyond the route{% endif %}{% if r.excess_km_rate is not none %}, then ${{ '%.2f'|format(r.excess_km_rate) }}/km{% endif %}{% else %}**** (not stated){% endif %}</dd>
-        <dt>Fuel</dt><dd>about {{ t.fuel_cost|money }} for the route{% if t.fuel_allowance %} · allowance {{ t.fuel_allowance|money }} covers {{ t.fuel_cover_pct }}%{% else %} · no allowance{% endif %}</dd>
+        <dt>Comfortable</dt><dd>{{ t.comfortable_days }} days at {{ cfg.trip.comfortable_hours_per_day }} h a day{% if t.days_short %}: {{ t.days_short }} short{% if t.buy_days %}, buy {{ t.buy_days }} extra{% if t.buy_cost is not none %} ({{ t.buy_cost|money(r.currency) }}){% endif %}{% endif %}{% endif %}</dd>
+        <dt>Explore</dt><dd>{{ t.explore_km|km }} spare, limited by the {{ t.explore_limit }}{% if t.explore_km_all_extra is defined %} · {{ t.explore_km_all_extra|km }} with all {{ r.extra_days }} extra days{% if t.all_extra_cost is not none %} ({{ t.all_extra_cost|money(r.currency) }}){% endif %}{% if t.explore_limit_all_extra == 'km cap' %}, limited by the km cap{% endif %}{% endif %}</dd>
+        <dt>Km cap</dt><dd>{% if t.cap_km %}{{ t.cap_km|km }}: {% if t.over_cap_km %}<span class="bad-text">{{ t.over_cap_km|km }} short of the route itself</span>{% if t.over_cap_cost %} (about {{ t.over_cap_cost|money(r.currency) }} in excess km){% endif %}{% else %}{{ t.cap_spare_km|km }} beyond the route{% endif %}{% if r.excess_km_rate is not none %}, then ${{ '%.2f'|format(r.excess_km_rate) }}/km{% endif %}{% else %}**** (not stated){% endif %}</dd>
+        <dt>Fuel</dt><dd>about {{ t.fuel_cost|money(r.currency) }} for the route{% if t.fuel_allowance %} · allowance {{ t.fuel_allowance|money(r.currency) }} covers {{ t.fuel_cover_pct }}%{% else %} · no allowance{% endif %}</dd>
         {% if t.unsealed %}<dt>Note</dt><dd>the route found uses unsealed roads ({{ t.unsealed|join(', ') }})</dd>{% endif %}
       </dl>
     </div>
@@ -33,7 +33,7 @@
   <div class="meta">Trip stats after the next poll</div>
   {% endif %}
   {% if r.cost is defined and r.cost %}
-  <div class="meta" title="{% for lbl, amount in r.cost.parts %}{{ lbl }} ${{ amount }}{{ ' · ' if not loop.last }}{% endfor %}">About <strong>{{ r.cost.total|money }}</strong> out of pocket{% if r.cost.notes %} ({{ r.cost.notes|join('; ') }}){% endif %}</div>
+  <div class="meta" title="{% for lbl, amount in r.cost.parts %}{{ lbl }} ${{ amount }}{{ ' · ' if not loop.last }}{% endfor %}">About <strong>{{ r.cost.total|money(r.currency) }}</strong> out of pocket{% if r.cost.notes %} ({{ r.cost.notes|join('; ') }}){% endif %}</div>
   {% endif %}
   <div class="meta">
     {% if missed %}Gone {{ r.gone_at|dt }} · was listed {{ ((r.last_seen - r.first_seen).total_seconds())|span }}

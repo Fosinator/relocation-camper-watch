@@ -1,4 +1,5 @@
-"""Transfercar (transfercar.com.au), the second big Australian relocation site.
+"""Transfercar (transfercar.com.au), the second big Australian relocation site, and its New Zealand twin
+transfercar.co.nz (2026-10-30: same feed, robots.txt allows everything, ~270 listings).
 
 The site's own JSON (robots.txt allows everything, checked 2026-10-29): one list request returns every live
 listing (~175), and a detail request adds the vehicle name and description, bond, operator and km cap. The detail is
@@ -15,8 +16,9 @@ from .base import Listing, Source, SourceError
 log = logging.getLogger(__name__)
 
 SITE = "https://www.transfercar.com.au"
-LIST_URL = SITE + "/api-endpoint/listings.json?limit=500"
-DETAIL_URL = SITE + "/api-endpoint/listing/{id}.json"
+SITE_NZ = "https://www.transfercar.co.nz"
+LIST_PATH = "/api-endpoint/listings.json?limit=500"
+DETAIL_PATH = "/api-endpoint/listing/{id}.json"
 
 
 def vehicle_kind(text: str | None) -> tuple[str, bool]:
@@ -30,10 +32,10 @@ def vehicle_kind(text: str | None) -> tuple[str, bool]:
     return "other", four_wd
 
 
-def listing_url(item: dict) -> str:
+def listing_url(item: dict, site: str = SITE) -> str:
     def part(s):
         return quote((s or "").replace(" ", "_"), safe="()_")
-    return f"{SITE}/relocation/{part(item.get('pickup_location'))}/{part(item.get('dropoff_location'))}/{item['id']}"
+    return f"{site}/relocation/{part(item.get('pickup_location'))}/{part(item.get('dropoff_location'))}/{item['id']}"
 
 
 def _inclusion(inc: dict) -> str | None:
@@ -67,7 +69,8 @@ def excess_km_rate(detail: dict) -> float | None:
     return None
 
 
-def normalise_item(item: dict, detail: dict | None) -> Listing:
+def normalise_item(item: dict, detail: dict | None, source: str = "transfercar", site: str = SITE,
+                   region: str = "AU", currency: str = "AUD") -> Listing:
     d = detail or {}
     dv = d.get("vehicle_type") if isinstance(d.get("vehicle_type"), dict) else {}
     type_text = item.get("vehicle_type") if isinstance(item.get("vehicle_type"), str) else dv.get("type")
@@ -78,15 +81,15 @@ def normalise_item(item: dict, detail: dict | None) -> Listing:
     paid = item.get("paid_days")
     bond = ((d.get("policies") or {}).get("insurance_policy") or {}).get("bond")
     return Listing(
-        source="transfercar",
+        source=source,
         listing_id=str(item["id"]),
-        url=listing_url(item),
+        url=listing_url(item, site),
         vehicle_name=vehicle_name,
         vehicle_type=vtype,
         four_wd=four_wd,
         berths=normalise.berths(type_text),
-        origin=normalise.city(item.get("pickup_location")),
-        destination=normalise.city(item.get("dropoff_location")),
+        origin=normalise.city(item.get("pickup_location"), region),
+        destination=normalise.city(item.get("dropoff_location"), region),
         pickup_from=normalise.day(item.get("pickup_date")),
         pickup_to=normalise.day(item.get("dropoff_date")),   # the site shows "From <pickup_date> To <dropoff_date>"
         days_included=item.get("free_days"),
@@ -98,36 +101,39 @@ def normalise_item(item: dict, detail: dict | None) -> Listing:
         description=dv.get("description"),
         km_allowed=d.get("kms_allowed") or None,
         excess_km_rate=excess_km_rate(d) if d else None,
+        region=region,
+        currency=currency,
         raw={"item": item, "detail": detail},
     )
 
 
 class Transfercar(Source):
-    name = "transfercar"
-    label = "Transfercar"
+    def __init__(self, name="transfercar", label="Transfercar", site=SITE, region="AU", currency="AUD"):
+        self.name, self.label, self.site, self.region, self.currency = name, label, site, region, currency
+        self.regions = frozenset({region})
 
     def fetch(self, http, cfg, cached):
-        data = http.get(LIST_URL).json()
+        data = http.get(self.site + LIST_PATH).json()
         items = [i for i in data.get("listings") or []
                  if not i.get("is_ghost_listing") and i.get("status_name", "listed") == "listed"]
         if not items:
             raise SourceError("the listings feed came back empty")
         if (data.get("count") or 0) > len(data.get("listings") or []):
-            log.warning("transfercar: got %d of %d listings - raise the limit in LIST_URL",
+            log.warning("%s: got %d of %d listings - raise the limit in LIST_PATH", self.name,
                         len(data["listings"]), data["count"])
-        budget = int(cfg["sources"]["transfercar"].get("details_per_poll", 40))
+        budget = int(cfg["sources"].get(self.name, {}).get("details_per_poll", 40))
         out = []
         for item in items:
             detail = (cached.get(str(item["id"])) or {}).get("detail")
             if detail is None and vehicle_kind(item.get("vehicle_type"))[0] != "other" and budget > 0:
                 budget -= 1
                 try:
-                    detail = http.get(DETAIL_URL.format(id=item["id"])).json()
+                    detail = http.get(self.site + DETAIL_PATH.format(id=item["id"])).json()
                     detail.pop("pickup_location", None)   # opening hours and maps: not needed, keeps raw small
                     detail.pop("dropoff_location", None)
                 except (Blocked, Disallowed):
                     raise
                 except Exception as e:  # noqa: BLE001 - one bad detail must not fail the poll
-                    log.info("transfercar detail %s skipped: %s", item["id"], e)
-            out.append(normalise_item(item, detail))
+                    log.info("%s detail %s skipped: %s", self.name, item["id"], e)
+            out.append(normalise_item(item, detail, self.name, self.site, self.region, self.currency))
         return out

@@ -30,6 +30,8 @@ def poll(name: str, *, cfg: dict | None = None, src=None, http=None, force: bool
     result = {"source": name, "started_at": now, "ok": False}
     if not scfg.get("enabled", True):
         return {**result, "skipped": "disabled in config.yaml"}
+    if not set(getattr(src, "regions", {"AU"})) & set(cfg.get("regions") or ["AU"]):
+        return {**result, "skipped": "its region is switched off in config.yaml"}
 
     with db.conn() as c:
         state = db.source_state(c, name)

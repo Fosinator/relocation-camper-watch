@@ -8,14 +8,14 @@
   <label>Start
     <select name="from">
       <option value="">Anywhere</option>
-      {% for city, n in from_places %}<option value="{{ city }}"{{ ' selected' if (route.origin or '')|lower == city|lower }}>{{ city }} ({{ n }})</option>{% endfor %}
+      {% for country, cities in from_places %}<optgroup label="{{ country }}">{% for city, n in cities %}<option value="{{ city }}"{{ ' selected' if (route.origin or '')|lower == city|lower }}>{{ city }} ({{ n }})</option>{% endfor %}</optgroup>{% endfor %}
     </select>
   </label>
   <span class="route-arrow">→</span>
   <label>Finish
     <select name="to">
       <option value="">Anywhere</option>
-      {% for city, n in to_places %}<option value="{{ city }}"{{ ' selected' if (route.destination or '')|lower == city|lower }}>{{ city }} ({{ n }})</option>{% endfor %}
+      {% for country, cities in to_places %}<optgroup label="{{ country }}">{% for city, n in cities %}<option value="{{ city }}"{{ ' selected' if (route.destination or '')|lower == city|lower }}>{{ city }} ({{ n }})</option>{% endfor %}</optgroup>{% endfor %}
     </select>
   </label>
   <label class="check"><input type="checkbox" name="ferry" value="1"{{ ' checked' if route.require_ferry }}> Ferry included</label>
@@ -42,7 +42,7 @@
 
 {% if deals %}
 <div class="home-summary">
-  {% if cheapest %}<div class="tile"><div class="meta">Cheapest</div><div class="big">{{ cheapest.cost.total|money }}</div><div class="meta">{{ cheapest.origin }} → {{ cheapest.destination }}, picks up {{ cheapest.pickup_from|d }}</div></div>{% endif %}
+  {% if cheapest %}<div class="tile"><div class="meta">Cheapest</div><div class="big">{{ cheapest.cost.total|money(cheapest.currency) }}</div><div class="meta">{{ cheapest.origin }} → {{ cheapest.destination }}, picks up {{ cheapest.pickup_from|d }}</div></div>{% endif %}
   {% if soonest %}<div class="tile"><div class="meta">Soonest pickup</div><div class="big">{{ soonest|d }}</div><div class="meta">{{ (soonest - today()).days }} days away</div></div>{% endif %}
   <div class="tile"><div class="meta">With fuel included</div><div class="big">{{ deals|selectattr('fuel_allowance')|list|length }}</div><div class="meta">of {{ deals|length }}</div></div>
 </div>
@@ -61,23 +61,23 @@
   <article class="card home-card{{ ' star' if r.matched and r.boosted }}">
     <div class="home-head">
       <div>
-        <div class="route">{{ r.origin or '****' }} → {{ r.destination or '****' }}</div>
+        <div class="route">{{ '🇳🇿 ' if r.region == 'NZ' }}{{ r.origin or '****' }} → {{ r.destination or '****' }}</div>
         <div class="meta">{{ r.vehicle_name or r.vehicle_type }}{% if r.berths %} · {{ r.berths }} berths{% endif %}{% if r.matched %} · ✓ matches your filters{% endif %}</div>
       </div>
       <div class="home-cost" title="{% for lbl, amount in c.parts %}{{ lbl }} ${{ amount }}{{ ' · ' if not loop.last }}{% endfor %}">
-        <div class="big">{{ c.total|money }}</div><div class="meta">out of pocket</div>
+        <div class="big">{{ c.total|money(r.currency) }}</div><div class="meta">out of pocket</div>
       </div>
     </div>
     <div class="home-chips">
       {% if r.ferry_short %}<span class="pill pill-ferry">⛴ {{ r.ferry_short }}</span>{% endif %}
-      {% if r.fuel_allowance %}<span class="pill pill-fuel">⛽ {{ r.fuel_allowance|money }} fuel</span>{% endif %}
+      {% if r.fuel_allowance %}<span class="pill pill-fuel">⛽ {{ r.fuel_allowance|money(r.currency) }} fuel</span>{% endif %}
       {% if t.pace %}<span class="pace pace-{{ t.pace|replace(' ', '-') }}">{{ t.pace|capitalize }} · {{ t.hours_per_day }} h a day</span>{% endif %}
     </div>
     <dl class="facts">
       <dt>Pick up</dt><dd>{{ r.pickup_from|d }} – {{ r.pickup_to|d }}</dd>
-      <dt>Days</dt><dd>{{ r.days_included|stars }}{% if r.extra_days %} + up to {{ r.extra_days }} extra{% if r.extra_day_price is not none %} at {{ r.extra_day_price|money }}/day{% endif %}{% endif %}</dd>
+      <dt>Days</dt><dd>{{ r.days_included|stars }}{% if r.extra_days %} + up to {{ r.extra_days }} extra{% if r.extra_day_price is not none %} at {{ r.extra_day_price|money(r.currency) }}/day{% endif %}{% endif %}</dd>
       {% if t.route_km %}<dt>Drive</dt><dd>{{ t.route_km|km }} · {{ t.drive_hours }} h{% if t.explore_km %} · {{ t.explore_km|km }} spare{% endif %}</dd>{% endif %}
-      <dt>Costs</dt><dd>{% for lbl, amount in c.parts %}{{ lbl }} {{ amount|money }}{{ ' · ' if not loop.last }}{% endfor %}{% if c.notes %}<br><span class="meta">{{ c.notes|join('; ') }}</span>{% endif %}</dd>
+      <dt>Costs</dt><dd>{% for lbl, amount in c.parts %}{{ lbl }} {{ amount|money(r.currency) }}{{ ' · ' if not loop.last }}{% endfor %}{% if c.notes %}<br><span class="meta">{{ c.notes|join('; ') }}</span>{% endif %}</dd>
     </dl>
     {% if r.ferry and r.ferry_short and r.ferry|length > r.ferry_short|length + 10 %}
     <details class="small-details"><summary class="meta">Ferry wording</summary><p class="meta">{{ r.ferry }}</p></details>

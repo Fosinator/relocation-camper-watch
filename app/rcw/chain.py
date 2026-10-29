@@ -36,6 +36,19 @@ def onward(first: dict, rows: list[dict], cfg: dict) -> list[dict]:
     return [r for r in rows if fits_after(first, r, cfg)]
 
 
+REGION_NAMES = {"AU": "Australia", "NZ": "New Zealand"}
+
+
+def places_by_region(rows: list[dict], key: str) -> list[tuple[str, list[tuple[str, int]]]]:
+    """[(region name, [(city, count)])] for dropdowns grouped by country."""
+    out = []
+    for region, name in REGION_NAMES.items():
+        cities = places([r for r in rows if (r.get("region") or "AU") == region], key)
+        if cities:
+            out.append((name, cities))
+    return out
+
+
 def places(rows: list[dict], key: str) -> list[tuple[str, int]]:
     """[(city, count)] for a dropdown, busiest first."""
     counts: dict[str, int] = {}

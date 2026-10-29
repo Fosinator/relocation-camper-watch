@@ -1,7 +1,7 @@
-"""Imoova (imoova.com), the largest Australian relocation site.
+"""Imoova (imoova.com), the largest Australian relocation site, and New Zealand (2026-10-30).
 
 api.imoova.com's robots.txt disallows everything, so this reads the public pages, which robots.txt allows
-(checked 2026-10-29): the table view embeds every live listing worldwide in one page (~270, ~213 Australian),
+(checked 2026-10-29): the table view embeds every live listing worldwide in one page (~270: ~213 Australian, ~110 NZ),
 and each listing's own page adds the vehicle description, brand and features, and the km cap. That detail page
 is fetched once per new motorhome / campervan, at most details_per_poll a poll.
 """
@@ -23,15 +23,19 @@ TYPES = {
 }
 
 
+REGION_SLUGS = {"AU": "australia", "NZ": "new-zealand"}
+
+
 def listing_url(item: dict) -> str:
-    return (f"{SITE}/relocations/australia/{item.get('departure_city_slug')}-to-"
+    country = REGION_SLUGS.get(item.get("departure_city_region") or "AU", "australia")
+    return (f"{SITE}/relocations/{country}/{item.get('departure_city_slug')}-to-"
             f"{item.get('delivery_city_slug')}/{item.get('reference')}")
 
 
-def live_items(page: str) -> list[dict]:
-    """Australian relocations that still have a vehicle to book."""
+def live_items(page: str, regions=("AU",)) -> list[dict]:
+    """Relocations in the chosen regions (AU, NZ) that still have a vehicle to book."""
     return [o for o in seroval.objects(page, "RelocationTableItem")
-            if o.get("departure_city_region") == "AU" and o.get("type", "RELOCATION") == "RELOCATION"
+            if o.get("departure_city_region") in regions and o.get("type", "RELOCATION") == "RELOCATION"
             and (o.get("count") is None or o.get("count") > 0)]
 
 
@@ -72,6 +76,8 @@ def normalise_item(item: dict, detail: dict | None) -> Listing:
     description = " ".join(x for x in (normalise.text_from_html(v.get("description")),
                                        f"Features: {', '.join(features)}." if features else None) if x) or None
 
+    region = item.get("departure_city_region") or "AU"
+    currency = item.get("currency") or ("NZD" if region == "NZ" else "AUD")
     extra = item.get("extra_units")
     rate = item.get("extra_hire_unit_rate")
     rel = (detail or {}).get("relocation") or {}
@@ -88,8 +94,8 @@ def normalise_item(item: dict, detail: dict | None) -> Listing:
         four_wd=four_wd,
         berths=(item.get("vehicle_sleeps") or v.get("sleeps") or normalise.berths(name)
                 or normalise.berths(v.get("name"))),
-        origin=normalise.city(item.get("departure_city_name")),
-        destination=normalise.city(item.get("delivery_city_name")),
+        origin=normalise.city(item.get("departure_city_name"), region),
+        destination=normalise.city(item.get("delivery_city_name"), region),
         pickup_from=normalise.day(item.get("available_from_date")),
         pickup_to=normalise.day(item.get("latest_departure_date") or item.get("available_to_date")),
         days_included=item.get("relocation_units"),
@@ -100,6 +106,8 @@ def normalise_item(item: dict, detail: dict | None) -> Listing:
         km_allowed=round(cap * to_km) if cap else None,
         km_per_extra_day=round(per_day * to_km) if per_day else None,
         excess_km_rate=excess / 100 / to_km if excess else None,
+        region=region,
+        currency=currency,
         raw={"item": item, "detail": detail},
     )
 
@@ -107,11 +115,13 @@ def normalise_item(item: dict, detail: dict | None) -> Listing:
 class Imoova(Source):
     name = "imoova"
     label = "Imoova"
+    regions = frozenset({"AU", "NZ"})
 
     def fetch(self, http, cfg, cached):
-        items = live_items(http.get(TABLE_URL).text)
+        regions = tuple(r for r in cfg["regions"] if r in self.regions)
+        items = live_items(http.get(TABLE_URL).text, regions)
         if not items:
-            raise SourceError("no Australian listings in the table page - has the page layout changed?")
+            raise SourceError(f"no {'/'.join(regions)} listings in the table page - has the page layout changed?")
         budget = int(cfg["sources"]["imoova"].get("details_per_poll", 40))
         out = []
         for item in items:

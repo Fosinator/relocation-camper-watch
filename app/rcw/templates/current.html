@@ -7,17 +7,19 @@
 <form class="tools" method="get" action="/#matches">
   <input type="hidden" name="fourwd" value="{{ fourwd }}"><input type="hidden" name="sort" value="{{ sort }}">
   {% if show_all %}<input type="hidden" name="all" value="1">{% endif %}
+  {% if region %}<input type="hidden" name="region" value="{{ region }}">{% endif %}
   <label class="meta">From
     <select name="from" onchange="this.form.submit()">
       <option value="">anywhere</option>
-      {% for city, n in from_places %}<option value="{{ city }}"{{ ' selected' if start|lower == city|lower }}>{{ city }} ({{ n }})</option>{% endfor %}
-      {% if start and start|lower not in from_places|map('first')|map('lower')|list %}<option value="{{ start }}" selected>{{ start }} (0)</option>{% endif %}
+      {% for country, cities in from_places %}<optgroup label="{{ country }}">{% for city, n in cities %}<option value="{{ city }}"{{ ' selected' if start|lower == city|lower }}>{{ city }} ({{ n }})</option>{% endfor %}</optgroup>{% endfor %}
+      {% set known = [] %}{% for country, cities in from_places %}{% for city, n in cities %}{% set _ = known.append(city|lower) %}{% endfor %}{% endfor %}
+      {% if start and start|lower not in known %}<option value="{{ start }}" selected>{{ start }} (0)</option>{% endif %}
     </select>
   </label>
   <label class="meta">To
     <select name="to" onchange="this.form.submit()">
       <option value="">anywhere</option>
-      {% for city, n in to_places %}<option value="{{ city }}"{{ ' selected' if to|lower == city|lower }}>{{ city }} ({{ n }})</option>{% endfor %}
+      {% for country, cities in to_places %}<optgroup label="{{ country }}">{% for city, n in cities %}<option value="{{ city }}"{{ ' selected' if to|lower == city|lower }}>{{ city }} ({{ n }})</option>{% endfor %}</optgroup>{% endfor %}
     </select>
   </label>
   <noscript><button type="submit">Show</button></noscript>
@@ -30,6 +32,12 @@
   <a href="{{ first.url }}" target="_blank" rel="noopener">Open it</a>
 </div>
 {% endif %}
+<div class="tools">
+  <span class="meta">Region:</span>
+  {% for code, label, href in region_links %}
+    <a class="chip{{ ' on' if region == code }}" href="{{ href }}#matches">{{ label }}</a>
+  {% endfor %}
+</div>
 <div class="tools">
   <span class="meta">4WD campers:</span>
   {% for mode, label in [('include', 'Include'), ('exclude', 'Hide'), ('only', 'Only 4WD')] %}

@@ -16,7 +16,7 @@ import logging
 import re
 from datetime import date
 
-from . import db, settings, signal, trips
+from . import db, normalise, settings, signal, trips
 from .sources import SOURCES
 
 log = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ def cost(row: dict, cfg: dict) -> dict:
             parts.append(("hire", rate / 100 * days))
         if item.get("booking_fee_amount"):
             parts.append(("booking fee", item["booking_fee_amount"] / 100))
-    elif row["source"] == "transfercar":
+    elif row["source"].startswith("transfercar"):
         rate = item.get("price_per_free_day")
         if rate is not None and days:
             parts.append(("hire", float(rate) * days))
@@ -165,10 +165,12 @@ def message_lines(r: dict) -> list[str]:
         head += f" · pick up {r['pickup_from']:%-d %b}"
     extras = [f"⛴ ferry {r['ferry_short']}"] if r.get("ferry_short") else []
     if r.get("fuel_allowance"):
-        extras.append(f"⛽ fuel ${r['fuel_allowance']:,.0f}")
+        extras.append(f"⛽ fuel {normalise.dollars(r['fuel_allowance'], r.get('currency'))}")
     c = r["cost"]
-    lines = [head] + ([" · ".join(extras)] if extras else []) + [
-        f"About ${c['total']:,} out of pocket" + (f" ({'; '.join(c['notes'])})" if c["notes"] else ""),
+    flag = "🇳🇿 " if r.get("region") == "NZ" else ""
+    lines = [flag + head] + ([" · ".join(extras)] if extras else []) + [
+        f"About {normalise.dollars(c['total'], r.get('currency'))} out of pocket"
+        + (f" ({'; '.join(c['notes'])})" if c["notes"] else ""),
         f"{src}: {r['url']}"]
     lines += [f"{SOURCES[a['source']].label if a['source'] in SOURCES else a['source']}: {a['url']}"
               for a in r["also"]]

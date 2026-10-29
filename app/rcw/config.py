@@ -16,11 +16,15 @@ from . import settings
 log = logging.getLogger(__name__)
 
 DEFAULTS = {
+    # Regions watched (David 2026-10-30: "Add New Zealand"). Imoova lists both on one page; Transfercar has a
+    # separate NZ site. Prices stay in each listing's own currency (AUD / NZD).
+    "regions": ["AU", "NZ"],
     "filters": {
         "vehicle_types": ["motorhome", "campervan"],
         "four_wd": "include",            # include | exclude | only  (David 2026-10-29: keep 4WD campers filterable)
         "min_berths": 2,                 # brief said 4; David: "2 berths are OK"
-        "cities": ["Hobart", "Melbourne", "Sydney", "Brisbane", "Adelaide", "Perth"],
+        "cities": ["Hobart", "Melbourne", "Sydney", "Brisbane", "Adelaide", "Perth"],   # Australia
+        "cities_nz": [],                 # New Zealand: empty = any city
         "min_days": 4,
         "pickup_within_days": 60,
         "exclude_keywords": ["hitop", "poptop"],  # David 2026-10-29: hi-tops and pop-tops "probably aren't interested"
@@ -50,6 +54,7 @@ DEFAULTS = {
     "sources": {
         "imoova": {"enabled": True, "simulate_outage": False, "details_per_poll": 40},
         "transfercar": {"enabled": True, "simulate_outage": False, "details_per_poll": 40},
+        "transfercar_nz": {"enabled": True, "simulate_outage": False, "details_per_poll": 40},
     },
     # Trip stats (David 2026-10-29: fuel allowance, time vs distance, required daily hours, room to explore;
     # "Perth to Sydney ... comfort would be more like 10 days" = about 400 km / 5 h a day).
@@ -59,7 +64,7 @@ DEFAULTS = {
         "max_hours_per_day": 9,
         "camper_time_factor": 1.15,      # campers are slower than the routing service's car times
         "fuel_l_per_100km": {"motorhome": 15, "campervan": 12, "other": 9},
-        "fuel_price_per_litre": 2.10,
+        "fuel_price_per_litre": {"AU": 2.10, "NZ": 2.60},   # in each region's own dollars
         "routing_requests_per_poll": 60,
         # the routing service will use outback tracks relocation vehicles aren't allowed on
         "unsealed_roads": ["Great Central Road", "Tjukaruru Road", "Outback Way", "Gunbarrel Highway",
@@ -99,6 +104,11 @@ def _check(cfg: dict) -> dict:
     if f["four_wd"] not in FOUR_WD_MODES:
         raise ValueError(f"filters.four_wd must be one of {', '.join(FOUR_WD_MODES)} (got {f['four_wd']!r})")
     f["vehicle_types"] = [str(t).lower() for t in f["vehicle_types"]]
+    cfg["regions"] = [str(r).upper() for r in (cfg.get("regions") or ["AU"])]
+    f["cities_nz"] = [str(c) for c in (f.get("cities_nz") or [])]
+    price = cfg["trip"]["fuel_price_per_litre"]
+    if not isinstance(price, dict):  # a single number (older config.yaml) is the Australian price
+        cfg["trip"]["fuel_price_per_litre"] = {**DEFAULTS["trip"]["fuel_price_per_litre"], "AU": float(price)}
     f["exclude_keywords"] = [str(k) for k in (f["exclude_keywords"] or [])]
     for key in ("min_berths", "min_days", "pickup_within_days"):
         f[key] = int(f[key])

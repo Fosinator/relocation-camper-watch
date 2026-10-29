@@ -15,7 +15,7 @@ from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from . import chain, config, db, prefs, routes, scheduler, settings, signal, stats, timefmt, trips
+from . import chain, config, db, normalise, prefs, routes, scheduler, settings, signal, stats, timefmt, trips
 from .sources import SOURCES
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -39,7 +39,7 @@ async def lifespan(app):
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 templates = Jinja2Templates(directory=HERE / "templates")
 templates.env.filters.update(dt=timefmt.dt, d=timefmt.d, ago=timefmt.ago, span=timefmt.span,
-                             money=lambda v: f"${float(v):,.0f}" if v is not None else "****",
+                             money=normalise.dollars,
                              km=lambda v: f"{float(v):,.0f} km" if v is not None else "****",
                              stars=lambda v: "****" if v is None else v)
 templates.env.globals.update(version=VERSION, source_label=lambda s: SOURCES[s].label if s in SOURCES else s,
@@ -103,14 +103,16 @@ def _page(request: Request, template: str, cfg: dict, c, **ctx) -> HTMLResponse:
 
 @app.get("/", response_class=HTMLResponse)
 def current(request: Request, fourwd: str = "", all: int = 0, sort: str = "starred",
-            start: str = Query("", alias="from"), to: str = "", after: int | None = None):
+            start: str = Query("", alias="from"), to: str = "", after: int | None = None, region: str = ""):
     cfg = config.load()
+    region = region.upper() if region.upper() in chain.REGION_NAMES else ""
     view = fourwd if fourwd in config.FOUR_WD_MODES else "include"
     sort = sort if sort in SORTS else "starred"
     keep_days = int(cfg["schedule"]["history_after_days"])
     with db.conn() as c:
         all_matches = _group(c.execute("""SELECT * FROM relocations WHERE status = 'open' AND matched
                                           ORDER BY boosted DESC, pickup_from NULLS LAST, first_seen DESC""").fetchall())
+        all_matches = [r for r in all_matches if not region or r["region"] == region]
         # daisy-chain: following on from one relocation shows the legs that start where it ends, when you'd be there
         first = c.execute("SELECT * FROM relocations WHERE id = %s", (after,)).fetchone() if after else None
         if first:
@@ -120,10 +122,11 @@ def current(request: Request, fourwd: str = "", all: int = 0, sort: str = "starr
         for r in all_matches:
             r["onward"] = len(chain.onward(r, all_matches, cfg))
             r["cost"] = routes.cost(r, cfg)
-        from_places, to_places = chain.places(all_matches, "origin"), chain.places(all_matches, "destination")
+        from_places = chain.places_by_region(all_matches, "origin")
+        to_places = chain.places_by_region(all_matches, "destination")
 
         def place_ok(r):
-            return ((not start or (r["origin"] or "").lower() == start.lower())
+            return ((not region or r["region"] == region) and (not start or (r["origin"] or "").lower() == start.lower())
                     and (not to or (r["destination"] or "").lower() == to.lower()))
         matches = [r for r in all_matches if place_ok(r) and (not first or chain.fits_after(first, r, cfg))]
         missed = _group(c.execute("""SELECT * FROM relocations WHERE status = 'gone' AND matched AND gone_at > %s
@@ -139,12 +142,23 @@ def current(request: Request, fourwd: str = "", all: int = 0, sort: str = "starr
         missed = [r for r in missed if view_ok(r) and place_ok(r)]
         others = [r for r in others if place_ok(r)]
         keep = {"fourwd": view, "sort": sort, "all": 1 if all else None, "from": start or None, "to": to or None,
-                "after": first["id"] if first else None}
+                "after": first["id"] if first else None, "region": region or None}
         return _page(request, "current.html", cfg, c, page="current", matches=matches, missed=missed,
                      others=others, show_all=bool(all), fourwd=view, open_total=open_total, keep_days=keep_days,
                      sort=sort, sorts=SORTS, start=start, to=to, from_places=from_places,
-                     to_places=to_places, first=first, window=window, keep=keep,
-                     filtered=bool(start or to or first))
+                     to_places=to_places, first=first, window=window, keep=keep, region=region,
+                     region_links=_region_links(cfg, view, sort, all), filtered=bool(start or to or first))
+
+
+def _region_links(cfg: dict, view: str, sort: str, show_all) -> list[tuple[str, str, str]]:
+    """[(code, label, href)] for the Region chips; switching region clears From/To."""
+    base = {"fourwd": view, "sort": sort, "all": 1 if show_all else None}
+    links = [("", "All", "/?" + urlencode({k: v for k, v in base.items() if v is not None}))]
+    for code in cfg["regions"]:
+        flag = {"AU": "🇦🇺", "NZ": "🇳🇿"}.get(code, "")
+        links.append((code, f"{flag} {chain.REGION_NAMES.get(code, code)}",
+                      "/?" + urlencode({k: v for k, v in {**base, "region": code}.items() if v is not None})))
+    return links
 
 
 ROUTE_SORTS = {k: SORTS[k] for k in ("cost", "soonest", "newest", "days", "easy", "explore", "fuel")}
@@ -168,7 +182,7 @@ def routes_page(request: Request, start: str = Query("", alias="from"), to: str 
         else:
             route = {"origin": start or None, "destination": to or None, "require_ferry": _flag(ferry),
                      "require_fuel": _flag(fuel), "matches_only": _flag(matches)}
-        everything = c.execute("SELECT origin, destination FROM relocations WHERE status = 'open'").fetchall()
+        everything = c.execute("SELECT origin, destination, region FROM relocations WHERE status = 'open'").fetchall()
         deals = sort_rows(routes.group(routes.rows(c, cfg, route, today)), sort)
         this_watch = next((w for w in saved if all(w[k] == (route[k] if route[k] is not None else None)
                                                    for k in routes.WATCH_FIELDS)), None)
@@ -176,7 +190,8 @@ def routes_page(request: Request, start: str = Query("", alias="from"), to: str 
                   "fuel": 1 if route["require_fuel"] else None, "matches": 1 if route["matches_only"] else None}
         return _page(request, "routes.html", cfg, c, page="routes", deals=deals, route=route,
                      route_label=routes.label(route), params=params, sort=sort, sorts=ROUTE_SORTS,
-                     from_places=chain.places(everything, "origin"), to_places=chain.places(everything, "destination"),
+                     from_places=chain.places_by_region(everything, "origin"),
+                     to_places=chain.places_by_region(everything, "destination"),
                      this_watch=this_watch, saved=saved,
                      cheapest=min(deals, key=lambda d: d["cost"]["total"]) if deals else None,
                      soonest=min((d["pickup_from"] for d in deals if d["pickup_from"]), default=None))

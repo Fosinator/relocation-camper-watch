@@ -33,7 +33,9 @@ class Listing:
     description: str | None = None       # vehicle text, searched by the keyword boosts
     km_allowed: int | None = None        # distance cap for the trip, if the site states one
     km_per_extra_day: int | None = None  # extra km allowance for each extra day bought (Imoova)
-    excess_km_rate: float | None = None  # AUD per km over the cap
+    excess_km_rate: float | None = None  # per km over the cap, in the listing's currency
+    region: str = "AU"                   # AU | NZ (David 2026-10-30: "Add New Zealand")
+    currency: str = "AUD"                # prices are in this currency (AUD | NZD)
     raw: dict = field(default_factory=dict)
 
     def row(self) -> dict:
@@ -43,6 +45,7 @@ class Listing:
 class Source:
     name = ""
     label = ""
+    regions: frozenset = frozenset({"AU"})   # regions this source can return; skipped if none is switched on
 
     def fetch(self, http, cfg: dict, cached: dict[str, dict]) -> list[Listing]:
         """Every live Australian listing on the site.

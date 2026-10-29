@@ -34,7 +34,7 @@ def evaluate(row: dict, cfg: dict, today: date) -> dict:
         fails.append(f"excluded: {', '.join(excluded)}")
     if row.get("berths") is not None and row["berths"] < f["min_berths"]:
         fails.append(f"{row['berths']} berths")
-    cities = {c.lower() for c in f["cities"]}
+    cities = {c.lower() for c in (f.get("cities_nz") or [] if row.get("region") == "NZ" else f["cities"])}
     places = {p.lower() for p in (row.get("origin"), row.get("destination")) if p}
     if cities and places and not places & cities:
         fails.append(f"route {row.get('origin')} → {row.get('destination')}")

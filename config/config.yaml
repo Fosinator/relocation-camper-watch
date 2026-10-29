@@ -3,12 +3,17 @@
 # file there the first time; after that, edit it on the server). Changes are picked up at the next poll - no
 # restart - except schedule.poll_hours. Secrets (database, Signal numbers) are in app.env, not here.
 
+# Regions watched. Imoova lists both on one page; Transfercar NZ is its own site (sources.transfercar_nz).
+# Prices stay in each listing's own currency (AUD / NZD).
+regions: [AU, NZ]
+
 # Hard filters: a listing "matches" only if it passes every one. A value the site doesn't show counts as passed.
 filters:
   vehicle_types: [motorhome, campervan]   # normalised types: motorhome, campervan, other
   four_wd: include                        # 4WD campers: include | exclude | only
   min_berths: 2
-  cities: [Hobart, Melbourne, Sydney, Brisbane, Adelaide, Perth]   # the origin OR destination must be one
+  cities: [Hobart, Melbourne, Sydney, Brisbane, Adelaide, Perth]   # Australia: the origin OR destination must be one
+  cities_nz: []                           # New Zealand: same idea; empty = any city
   min_days: 4                             # included ($1/day or free) days
   pickup_within_days: 60
   exclude_keywords: [hitop, poptop]       # vehicle names containing these never match (spaces and hyphens
@@ -44,7 +49,7 @@ trip:
   max_hours_per_day: 9              # beyond this the pace shows as "too tight"
   camper_time_factor: 1.15          # campers drive slower than the routing service's car times
   fuel_l_per_100km: {motorhome: 15, campervan: 12, other: 9}
-  fuel_price_per_litre: 2.10
+  fuel_price_per_litre: {AU: 2.10, NZ: 2.60}   # each in its own dollars
   routing_requests_per_poll: 60
   unsealed_roads: [Great Central Road, Tjukaruru Road, Outback Way, Gunbarrel Highway, Tanami Road,
                    Gibb River Road, Plenty Highway, Donohue Highway, Sandover Highway, Buchanan Highway,
@@ -67,6 +72,10 @@ sources:
     simulate_outage: false    # true = every poll fails, to test the outage handling
     details_per_poll: 40      # listing pages fetched per poll for new motorhomes / campervans
   transfercar:
+    enabled: true
+    simulate_outage: false
+    details_per_poll: 40
+  transfercar_nz:
     enabled: true
     simulate_outage: false
     details_per_poll: 40

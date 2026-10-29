@@ -5,6 +5,7 @@
   digest --preview              print the would-be digest, change nothing
   digest --send                 send the digest now (honours dry-run in config.yaml / DRY_RUN=1)
   outages                       run the 24-hour outage check now
+  trips                         recompute the trip stats now (fetching missing routes within the budget)
 """
 import argparse
 import logging
@@ -47,6 +48,7 @@ def main(argv=None) -> int:
     g.add_argument("--preview", action="store_true")
     g.add_argument("--send", action="store_true")
     sub.add_parser("outages")
+    sub.add_parser("trips")
     a = p.parse_args(argv)
     cfg = config.load()
 
@@ -68,6 +70,9 @@ def main(argv=None) -> int:
     elif a.cmd == "outages":
         from . import alerts
         print(f"{alerts.check_outages(cfg, timefmt.now())} outage alert(s) sent")
+    elif a.cmd == "trips":
+        from . import trips
+        print(trips.refresh(cfg))
     return 0
 
 

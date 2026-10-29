@@ -40,6 +40,24 @@ CREATE TABLE IF NOT EXISTS relocations (
 CREATE INDEX IF NOT EXISTS relocations_status_idx ON relocations (status, matched);
 CREATE INDEX IF NOT EXISTS relocations_gone_idx ON relocations (gone_at);
 
+-- 2026-10-29: km caps and trip stats (David: fuel allowance, time vs distance, daily hours, room to explore)
+ALTER TABLE relocations ADD COLUMN IF NOT EXISTS km_allowed int;
+ALTER TABLE relocations ADD COLUMN IF NOT EXISTS km_per_extra_day int;
+ALTER TABLE relocations ADD COLUMN IF NOT EXISTS excess_km_rate numeric(6, 2);
+ALTER TABLE relocations ADD COLUMN IF NOT EXISTS trip jsonb;   -- trips.stats(): pace, explore km, fuel, detours
+
+-- Road distances from the routing service, kept for good (one request per route, ever).
+CREATE TABLE IF NOT EXISTS road_routes (
+    key          text PRIMARY KEY,        -- "lon,lat;lon,lat[;...]" rounded to 4 places
+    drive_km     numeric,
+    drive_hours  numeric,                 -- car time from the routing service
+    ferry_km     numeric,
+    ferry_hours  numeric,
+    roads        text[],                  -- every road name / number on the route (unsealed check)
+    error        text,                    -- the service found no route
+    fetched_at   timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS polls (
     id              bigserial PRIMARY KEY,
     source          text NOT NULL,

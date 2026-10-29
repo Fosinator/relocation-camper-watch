@@ -23,7 +23,7 @@ def database(monkeypatch):
     monkeypatch.setattr(settings, "DATABASE_URL", URL)
     monkeypatch.setattr(settings, "DRY_RUN", True)
     with db.conn() as c:
-        c.execute("DROP TABLE IF EXISTS relocations, polls, source_state, digests, messages CASCADE")
+        c.execute("DROP TABLE IF EXISTS relocations, polls, source_state, digests, messages, road_routes CASCADE")
         db.migrate(c)
 
 
@@ -116,6 +116,37 @@ def test_backoff_then_outage_alert_once(cfg):
     with db.conn() as c:
         st = db.source_state(c, "transfercar")
     assert st["failing_since"] is None and st["outage_alerted_at"] is None
+
+
+def test_trip_stats_refresh_caches_routes(cfg):
+    import json
+
+    from conftest import fixture_text
+
+    from rcw import trips
+
+    class FakeRouting:
+        calls = 0
+
+        def get(self, url):
+            FakeRouting.calls += 1
+            data = json.loads(fixture_text("osrm_darwin_uluru_perth.json"))
+            return type("R", (), {"json": lambda self: data})()
+
+        def close(self):
+            pass
+
+    src = Fake("imoova", [listing("imoova", "1", origin="Darwin", destination="Adelaide", km_allowed=4500)])
+    run(src, cfg, T0)  # routing budget 0 in tests: no stats yet
+    assert rows()[0]["trip"] is None
+    cfg["trip"]["routing_requests_per_poll"] = 50
+    first = trips.refresh(cfg, http=FakeRouting())
+    t = rows()[0]["trip"]
+    assert first["done"] == 1 and 3900 < t["route_km"] < 4100 and t["pace"] and t["cap_km"] == 4500
+    assert any(d["name"] == "Uluru" for d in t["detours"])
+    calls = FakeRouting.calls
+    trips.refresh(cfg, http=FakeRouting())
+    assert FakeRouting.calls == calls  # every route came from road_routes the second time
 
 
 def test_digest_dry_run_and_duplicates(cfg, capsys):

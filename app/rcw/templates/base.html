@@ -59,6 +59,21 @@ h2 { font-size: 17px; margin: 28px 0 10px; }
   color: #fff; font-weight: 600; font-size: 14px; }
 .btn.alt { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
 @media (prefers-color-scheme: dark) { .btn { color: #0f1513; } .btn.alt { color: var(--accent); } }
+.card { position: relative; }
+details.trip > summary { cursor: pointer; list-style: none; }
+details.trip > summary::-webkit-details-marker { display: none; }
+.pace { display: inline-block; border-radius: 6px; padding: 1px 8px; font-size: 13px; font-weight: 600; }
+.pace-comfortable { background: var(--accent-soft); color: var(--accent); }
+.pace-busy { background: var(--star-soft); color: var(--star); }
+.pace-rushed, .pace-too-tight { background: var(--bad-soft); color: var(--bad); }
+.trip-body { position: absolute; left: -1px; right: -1px; z-index: 5; margin-top: 6px; padding: 12px 14px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.detours-title { font-weight: 600; font-size: 14px; margin-top: 6px; }
+.detours { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
+.detours li { margin: 2px 0; }
+.detours .d-fits, .detours .d-on_route { color: var(--accent); }
+.detours .d-busy, .detours .d-extra_days { color: var(--star); }
+.detours .d-over_cap, .detours .d-unsealed, .detours .d-no { color: var(--bad); }
 .empty { padding: 18px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); }
 .tablewrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
 table { border-collapse: collapse; width: 100%; font-size: 14px; }
@@ -110,7 +125,19 @@ footer { color: var(--muted); font-size: 12px; padding: 24px 0; }
     <div class="notice"><strong>{{ s.label }}</strong> has been failing since {{ s.failing_since|dt }}: {{ s.last_error }}{% if s.next_attempt_at %} · next try {{ s.next_attempt_at|dt }}{% endif %}</div>
   {% endfor %}
   <main>{% block main %}{% endblock %}</main>
-  <footer>Relocation Camper Watch {{ version }} · public listings from Imoova and Transfercar · booking stays manual</footer>
+  <footer>Relocation Camper Watch {{ version }} · public listings from Imoova and Transfercar · road distances © OpenStreetMap contributors (OSRM) · booking stays manual</footer>
 </div>
+<script>
+// Trip stats: open on hover where there is a mouse, on tap on a phone; one open at a time.
+document.querySelectorAll("details.trip").forEach(function (d) {
+  d.addEventListener("toggle", function () {
+    if (d.open) document.querySelectorAll("details.trip[open]").forEach(function (o) { if (o !== d) o.open = false; });
+  });
+  if (window.matchMedia("(hover: hover)").matches) {
+    d.addEventListener("mouseenter", function () { d.open = true; });
+    d.addEventListener("mouseleave", function () { d.open = false; });
+  }
+});
+</script>
 </body>
 </html>

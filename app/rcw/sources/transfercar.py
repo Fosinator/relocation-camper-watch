@@ -1,7 +1,7 @@
 """Transfercar (transfercar.com.au), the second big Australian relocation site.
 
 The site's own JSON (robots.txt allows everything, checked 2026-10-29): one list request returns every live
-listing (~175), and a detail request adds the vehicle name and description, bond and operator. The detail is
+listing (~175), and a detail request adds the vehicle name and description, bond, operator and km cap. The detail is
 fetched once per new motorhome / campervan, at most details_per_poll a poll.
 """
 import logging
@@ -46,6 +46,27 @@ def _inclusion(inc: dict) -> str | None:
     return f"{kind.title()} {desc}".strip() or None
 
 
+_RATE_CENTS = re.compile(r"(\d+(?:\.\d+)?)\s*c(?:ents?)?\s*(?:per|/|a|an)\s*(?:extra\s+)?(?:km|kilomet)", re.I)
+_RATE_DOLLARS = re.compile(r"\$\s*(\d+(?:\.\d+)?)\s*(?:per|/|a|an)\s*(?:extra\s+)?(?:km|kilomet)", re.I)
+
+
+def excess_km_rate(detail: dict) -> float | None:
+    """The per-km charge over the cap, from the operator's free text ("50c per extra KM over the allowed
+    amount") -> AUD per km."""
+    texts = [((detail.get("policies") or {}).get("other_requirements") or ""),
+             *((detail.get("instructions") or {}).values())]
+    for text in texts:
+        if not isinstance(text, str):
+            continue
+        m = _RATE_CENTS.search(text)
+        if m:
+            return float(m.group(1)) / 100
+        m = _RATE_DOLLARS.search(text)
+        if m:
+            return float(m.group(1))
+    return None
+
+
 def normalise_item(item: dict, detail: dict | None) -> Listing:
     d = detail or {}
     dv = d.get("vehicle_type") if isinstance(d.get("vehicle_type"), dict) else {}
@@ -75,6 +96,8 @@ def normalise_item(item: dict, detail: dict | None) -> Listing:
         bond=normalise.money(bond),
         operator=(d.get("operator") or {}).get("company"),
         description=dv.get("description"),
+        km_allowed=d.get("kms_allowed") or None,
+        excess_km_rate=excess_km_rate(d) if d else None,
         raw={"item": item, "detail": detail},
     )
 

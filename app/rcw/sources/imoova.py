@@ -2,8 +2,8 @@
 
 api.imoova.com's robots.txt disallows everything, so this reads the public pages, which robots.txt allows
 (checked 2026-10-29): the table view embeds every live listing worldwide in one page (~270, ~213 Australian),
-and each listing's own page adds the vehicle description, brand and features. That detail page is fetched once
-per new motorhome / campervan, at most details_per_poll a poll.
+and each listing's own page adds the vehicle description, brand and features, and the km cap. That detail page
+is fetched once per new motorhome / campervan, at most details_per_poll a poll.
 """
 import logging
 
@@ -35,9 +35,21 @@ def live_items(page: str) -> list[dict]:
             and (o.get("count") is None or o.get("count") > 0)]
 
 
+RELOCATION_FIELDS = ("distance_allowed", "excess_distance_rate", "extra_distance_allowed_per_extra_hire_unit",
+                     "measurement")
+
+
 def vehicle_from_page(page: str) -> dict:
     vehicles = seroval.objects(page, "Vehicle")
     return vehicles[0] if vehicles else {}
+
+
+def detail_from_page(page: str) -> dict:
+    """The listing page's vehicle, plus the km cap from its relocation record (checked 2026-10-29:
+    distance_allowed 3150, excess_distance_rate 55 = cents per km, +250 km per extra day)."""
+    relocations = seroval.objects(page, "Relocation")
+    rel = relocations[0] if relocations else {}
+    return {"vehicle": vehicle_from_page(page), "relocation": {k: rel.get(k) for k in RELOCATION_FIELDS}}
 
 
 def normalise_item(item: dict, detail: dict | None) -> Listing:
@@ -62,6 +74,11 @@ def normalise_item(item: dict, detail: dict | None) -> Listing:
 
     extra = item.get("extra_units")
     rate = item.get("extra_hire_unit_rate")
+    rel = (detail or {}).get("relocation") or {}
+    to_km = 1.609 if rel.get("measurement") == "IMPERIAL" else 1.0
+    cap = rel.get("distance_allowed")
+    per_day = rel.get("extra_distance_allowed_per_extra_hire_unit")
+    excess = rel.get("excess_distance_rate")
     return Listing(
         source="imoova",
         listing_id=str(item["id"]),
@@ -80,6 +97,9 @@ def normalise_item(item: dict, detail: dict | None) -> Listing:
         extra_day_price=rate / 100 if extra and rate is not None else None,
         inclusions=" · ".join(inclusions) or None,
         description=description,
+        km_allowed=round(cap * to_km) if cap else None,
+        km_per_extra_day=round(per_day * to_km) if per_day else None,
+        excess_km_rate=excess / 100 / to_km if excess else None,
         raw={"item": item, "detail": detail},
     )
 
@@ -96,10 +116,12 @@ class Imoova(Source):
         out = []
         for item in items:
             detail = (cached.get(str(item["id"])) or {}).get("detail")
-            if detail is None and TYPES.get(item.get("vehicle_type") or "", ("other",))[0] != "other" and budget > 0:
+            # details saved before 2026-10-29 lack the km cap ("relocation"): fetch those again too
+            if ((detail is None or "relocation" not in detail) and budget > 0
+                    and TYPES.get(item.get("vehicle_type") or "", ("other",))[0] != "other"):
                 budget -= 1
                 try:
-                    detail = {"vehicle": vehicle_from_page(http.get(listing_url(item)).text)}
+                    detail = detail_from_page(http.get(listing_url(item)).text)
                 except (Blocked, Disallowed):
                     raise
                 except Exception as e:  # noqa: BLE001 - one bad detail page must not fail the poll

@@ -7,7 +7,7 @@ listed once with both links. The database size shows when it passes alerts.db_si
 import logging
 from datetime import datetime, timedelta, timezone
 
-from . import db, settings, signal, timefmt
+from . import db, settings, signal, timefmt, trips
 from .sources import SOURCES
 
 log = logging.getLogger(__name__)
@@ -30,6 +30,9 @@ def item_lines(r: dict, dups: list[dict] = ()) -> list[str]:
         days += f" (+{r['extra_days']})"
     parts = [f"{star}{r['origin'] or '****'} → {r['destination'] or '****'}", f"{vehicle}, {berths}", days,
              f"from {timefmt.d(r['pickup_from'])}"]
+    pace = trips.badge(r.get("trip"))
+    if pace:
+        parts.append(pace.lower())
     if r["inclusions"]:
         parts.append(r["inclusions"])
     if r["status"] == "gone":

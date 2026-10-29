@@ -13,7 +13,7 @@ from . import filters, settings
 
 LISTING_FIELDS = ["url", "vehicle_name", "vehicle_type", "four_wd", "berths", "origin", "destination", "pickup_from",
                   "pickup_to", "days_included", "extra_days", "extra_day_price", "inclusions", "bond", "operator",
-                  "description"]
+                  "description", "km_allowed", "km_per_extra_day", "excess_km_rate"]
 EVAL_FIELDS = ["matched", "boosted", "fail_reasons", "boost_reasons"]
 
 

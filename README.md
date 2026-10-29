@@ -71,6 +71,7 @@ Run them inside the container: `docker exec -w /app relocation-camper-watch /ven
 | `digest --preview` | print the would-be digest and change nothing |
 | `digest --send` | send the digest now (honours dry-run) |
 | `outages` | run the 24-hour outage check now |
+| `trips` | recompute the trip stats now (fetching missing routes within the budget) |
 
 **Dry-run mode:** set `alerts.dry_run: true` in config.yaml (or `DRY_RUN=1` in app.env). The digest and alerts
 then go to the container log (`docker logs relocation-camper-watch`) instead of Signal.
@@ -109,6 +110,13 @@ If the file has a mistake, the last good settings stay in use and the dashboard 
 | `sources.<site>.enabled` | `true` | switch a site off |
 | `sources.<site>.simulate_outage` | `false` | make every poll fail (testing) |
 | `sources.<site>.details_per_poll` | `40` | detail requests per poll, for new motorhomes and campervans |
+| `trip.comfortable_hours_per_day` / `busy_hours_per_day` / `max_hours_per_day` | `5` / `7` / `9` | pace bands |
+| `trip.camper_time_factor` | `1.15` | camper hours = routing-service car hours × this |
+| `trip.fuel_l_per_100km` / `fuel_price_per_litre` | 15 / 12 / 9 L, `$2.10` | fuel estimate |
+| `trip.max_detour_km` / `detours_per_listing` | `1500` / `10` | which sights get checked |
+| `trip.routing_requests_per_poll` | `60` | requests to the routing service per poll |
+| `trip.unsealed_roads` | 16 outback roads | routes using these are flagged |
+| `sights` | 34 places | detours to check: `{name, lat, lon}` |
 
 ## How matching works
 
@@ -121,6 +129,35 @@ If the file has a mistake, the last good settings stay in use and the dashboard 
 - **Same deal on both sites:** same route and vehicle type, berths equal or unknown, and overlapping pickup
   windows. Both are stored. The digest lists the deal once with both links, and the dashboard shows one card with
   both buttons.
+
+## Trip stats
+
+Every open match gets a **pace badge** ("Comfortable · +222 km to explore") and a **trip panel**. The panel
+opens on hover with a mouse, or on tap on a phone. The digest line carries the badge too, and the Current page
+can sort by most room to explore.
+
+- **Route:** road km and driving hours from the public OSRM routing service, plus 15% because campers are
+  slower than car times. Ferry legs (Spirit of Tasmania) are kept out of the driving numbers. One request per
+  route, kept for good in `road_routes`, at most `trip.routing_requests_per_poll` a poll.
+- **Pace:** driving hours a day over the included days. Comfortable ≤ 5 h, busy ≤ 7 h, rushed ≤ 9 h, beyond
+  that too tight. Also the days a comfortable trip takes, and the extra days to buy (and their cost) if short.
+- **Explore:** spare km = (days × 5 h − driving hours) × the route's average speed, limited by the site's km
+  cap (Transfercar `kms_allowed`; Imoova `distance_allowed` plus its km per extra day). Also shown with every
+  extra day bought.
+- **Fuel:** route km × L/100 km (motorhome 15, campervan 12) × $/L, against the listing's fuel allowance.
+- **Detours:** up to 10 `sights` from config.yaml whose rough detour is under 1,500 km are routed as
+  A → sight → B. Each is shown as one of:
+  - on the way
+  - fits comfortably
+  - fits at a busier pace
+  - needs N extra days (with the cost)
+  - over the km cap (with the excess cost when the site states a per-km rate)
+  - only via unsealed roads
+
+  The routing service happily uses outback tracks (it takes Darwin → Uluru → Perth along the Great Central
+  Road), so any route using a road in `trip.unsealed_roads` is flagged instead of trusted.
+- A city without a map position shows "no map position for X". Add it to `CITY_COORDS` in `rcw/geo.py`
+  (and to `KNOWN_CITIES` in `rcw/normalise.py`).
 
 ## Adding a third source
 

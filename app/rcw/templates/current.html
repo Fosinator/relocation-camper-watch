@@ -6,11 +6,18 @@
 <div class="tools">
   <span class="meta">4WD campers:</span>
   {% for mode, label in [('include', 'Include'), ('exclude', 'Hide'), ('only', 'Only 4WD')] %}
-    <a class="chip{{ ' on' if fourwd == mode }}" href="?fourwd={{ mode }}{{ '&all=1' if show_all }}">{{ label }}</a>
+    <a class="chip{{ ' on' if fourwd == mode }}" href="?fourwd={{ mode }}&sort={{ sort }}{{ '&all=1' if show_all }}">{{ label }}</a>
   {% endfor %}
   <span class="meta" style="margin-left:12px">Listings:</span>
-  <a class="chip{{ ' on' if not show_all }}" href="?fourwd={{ fourwd }}">Matches</a>
-  <a class="chip{{ ' on' if show_all }}" href="?fourwd={{ fourwd }}&all=1">Everything</a>
+  <a class="chip{{ ' on' if not show_all }}" href="?fourwd={{ fourwd }}&sort={{ sort }}">Matches</a>
+  <a class="chip{{ ' on' if show_all }}" href="?fourwd={{ fourwd }}&sort={{ sort }}&all=1">Everything</a>
+</div>
+<div class="tools">
+  <span class="meta">Sort:</span>
+  {% for key, label in sorts.items() %}
+    <a class="chip{{ ' on' if sort == key }}" href="?fourwd={{ fourwd }}&sort={{ key }}{{ '&all=1' if show_all }}">{{ label }}</a>
+  {% endfor %}
+  <span class="meta" style="margin-left:12px">Hover or tap a pace badge for trip stats and detours.</span>
 </div>
 {% if cfg.filters.four_wd != 'include' %}<p class="meta">config.yaml filters 4WD campers: <strong>{{ cfg.filters.four_wd }}</strong>.</p>{% endif %}
 

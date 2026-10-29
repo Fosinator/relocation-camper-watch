@@ -12,7 +12,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from . import config, db, scheduler, settings, signal, stats, timefmt
+from . import config, db, scheduler, settings, signal, stats, timefmt, trips
 from .sources import SOURCES
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -37,8 +37,11 @@ app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None
 templates = Jinja2Templates(directory=HERE / "templates")
 templates.env.filters.update(dt=timefmt.dt, d=timefmt.d, ago=timefmt.ago, span=timefmt.span,
                              money=lambda v: f"${float(v):,.0f}" if v is not None else "****",
+                             km=lambda v: f"{float(v):,.0f} km" if v is not None else "****",
                              stars=lambda v: "****" if v is None else v)
-templates.env.globals.update(version=VERSION, source_label=lambda s: SOURCES[s].label if s in SOURCES else s)
+templates.env.globals.update(version=VERSION, source_label=lambda s: SOURCES[s].label if s in SOURCES else s,
+                             trip_badge=trips.badge)
+SORTS = {"starred": "Starred first", "explore": "Most room to explore", "soonest": "Soonest pickup"}
 
 
 def _sources(c, cfg) -> list[dict]:
@@ -74,9 +77,10 @@ def _page(request: Request, template: str, cfg: dict, c, **ctx) -> HTMLResponse:
 
 
 @app.get("/", response_class=HTMLResponse)
-def current(request: Request, fourwd: str = "", all: int = 0):
+def current(request: Request, fourwd: str = "", all: int = 0, sort: str = "starred"):
     cfg = config.load()
     view = fourwd if fourwd in config.FOUR_WD_MODES else "include"
+    sort = sort if sort in SORTS else "starred"
     keep_days = int(cfg["schedule"]["history_after_days"])
     with db.conn() as c:
         matches = _group(c.execute("""SELECT * FROM relocations WHERE status = 'open' AND matched
@@ -92,8 +96,13 @@ def current(request: Request, fourwd: str = "", all: int = 0):
             return view == "include" or (view == "only") == bool(r["four_wd"])
         matches = [r for r in matches if view_ok(r)]
         missed = [r for r in missed if view_ok(r)]
+        if sort == "explore":
+            matches.sort(key=lambda r: -((r["trip"] or {}).get("explore_km", -1)))
+        elif sort == "soonest":
+            matches.sort(key=lambda r: (r["pickup_from"] is None, r["pickup_from"]))
         return _page(request, "current.html", cfg, c, page="current", matches=matches, missed=missed,
-                     others=others, show_all=bool(all), fourwd=view, open_total=open_total, keep_days=keep_days)
+                     others=others, show_all=bool(all), fourwd=view, open_total=open_total, keep_days=keep_days,
+                     sort=sort, sorts=SORTS)
 
 
 @app.get("/history", response_class=HTMLResponse)

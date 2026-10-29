@@ -12,7 +12,9 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 @pytest.fixture
 def cfg():
-    return config.defaults()
+    c = config.defaults()
+    c["trip"]["routing_requests_per_poll"] = 0  # tests never call the real routing service
+    return c
 
 
 def fixture_text(name: str) -> str:

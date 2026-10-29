@@ -10,6 +10,7 @@ KNOWN_CITIES = [
     "Cairns", "Gold Coast", "Sunshine Coast", "Alice Springs", "Broome", "Townsville", "Canberra", "Newcastle",
     "Mackay", "Ballina", "Byron Bay", "Geelong", "Wollongong", "Port Lincoln", "Exmouth", "Esperance", "Albany",
     "Kununurra", "Rockhampton", "Bundaberg", "Hervey Bay", "Coffs Harbour", "Port Macquarie", "Mildura",
+    "Whyalla", "Bairnsdale", "Kalgoorlie",
 ]
 
 

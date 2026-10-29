@@ -67,14 +67,17 @@ DEFAULTS = {
                            "Sandover Highway", "Buchanan Highway", "Oodnadatta Track", "Birdsville Track",
                            "Strzelecki Track", "Mereenie Loop", "Ernest Giles Road", "Old Telegraph Track"],
     },
-    # Places worth a detour; reachable on sealed roads. Add your own: {name, lat, lon}.
+    # Places worth a detour; reachable on sealed roads. Add your own: {name, lat, lon}. "via" = points the detour
+    # must pass on the way in and (reversed) out, where the routing service would otherwise take an unsealed
+    # shortcut: Uluru and Kings Canyon go via Erldunda on the Stuart Highway, not the Ernest Giles Road.
     "sights": [
         {"name": "Kakadu (Jabiru)", "lat": -12.6705, "lon": 132.8361},
         {"name": "Litchfield (Wangi Falls)", "lat": -13.1650, "lon": 130.6800},
         {"name": "Katherine Gorge", "lat": -14.3170, "lon": 132.4200},
         {"name": "Karlu Karlu / Devils Marbles", "lat": -20.5650, "lon": 134.2610},
-        {"name": "Kings Canyon", "lat": -24.2500, "lon": 131.5650},
-        {"name": "Uluru", "lat": -25.3444, "lon": 131.0369},
+        {"name": "Kings Canyon", "lat": -24.2500, "lon": 131.5650,
+         "via": [[-25.2047, 133.1990], [-25.2856, 131.9665]]},   # Erldunda, Lasseter Highway -> Luritja Road
+        {"name": "Uluru", "lat": -25.3444, "lon": 131.0369, "via": [[-25.2047, 133.1990]]},   # Erldunda
         {"name": "Coober Pedy", "lat": -29.0135, "lon": 134.7544},
         {"name": "Flinders Ranges (Wilpena Pound)", "lat": -31.5250, "lon": 138.6020},
         {"name": "Barossa Valley", "lat": -34.5230, "lon": 138.9590},
@@ -127,7 +130,8 @@ def _check(cfg: dict) -> dict:
     f["exclude_keywords"] = [str(k) for k in (f["exclude_keywords"] or [])]
     for key in ("min_berths", "min_days", "pickup_within_days"):
         f[key] = int(f[key])
-    cfg["sights"] = [{"name": str(s["name"]), "lat": float(s["lat"]), "lon": float(s["lon"])}
+    cfg["sights"] = [{"name": str(s["name"]), "lat": float(s["lat"]), "lon": float(s["lon"]),
+                      "via": [(float(p[0]), float(p[1])) for p in (s.get("via") or [])]}
                      for s in (cfg.get("sights") or [])]
     hh, mm = str(cfg["schedule"]["digest_time"]).split(":")
     cfg["schedule"]["digest_time"] = f"{int(hh):02d}:{int(mm):02d}"

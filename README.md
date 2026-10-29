@@ -116,7 +116,7 @@ If the file has a mistake, the last good settings stay in use and the dashboard 
 | `trip.max_detour_km` / `detours_per_listing` | `1500` / `10` | which sights get checked |
 | `trip.routing_requests_per_poll` | `60` | requests to the routing service per poll |
 | `trip.unsealed_roads` | 16 outback roads | routes using these are flagged |
-| `sights` | 34 places | detours to check: `{name, lat, lon}` |
+| `sights` | 34 places | detours to check: `{name, lat, lon}`, plus optional `via: [[lat, lon], ...]`. These are points the detour must pass going in (and, reversed, coming out) where the routing service would take an unsealed shortcut. Uluru and Kings Canyon go via Erldunda. |
 
 ## How matching works
 

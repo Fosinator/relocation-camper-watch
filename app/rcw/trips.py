@@ -165,7 +165,8 @@ def refresh(cfg: dict, http=None) -> dict:
                         continue
                     sights = geo.candidate_sights(a, b, cfg["sights"], float(t["max_detour_km"]),
                                                   int(t["detours_per_listing"]))
-                    vias = [(s["name"], router.get([a, (s["lat"], s["lon"]), b])) for s in sights]
+                    vias = [(s["name"], router.get([a, *s["via"], (s["lat"], s["lon"]), *reversed(s["via"]), b]))
+                            for s in sights]
                     trip = stats(r, direct, vias, cfg)
                     if any(v is None for _, v in vias):
                         trip["detours_pending"] = True

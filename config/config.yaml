@@ -54,13 +54,15 @@ trip:
                    Old Telegraph Track]
 
 # Places worth a detour, reachable on sealed roads. Add your own (name, lat, lon from Google Maps).
+# "via" = points the detour must pass going in and (reversed) coming out, where the routing service would
+# otherwise take an unsealed shortcut (Uluru and Kings Canyon: Erldunda, not the Ernest Giles Road).
 sights:
   - {name: "Kakadu (Jabiru)", lat: -12.6705, lon: 132.8361}
   - {name: "Litchfield (Wangi Falls)", lat: -13.1650, lon: 130.6800}
   - {name: "Katherine Gorge", lat: -14.3170, lon: 132.4200}
   - {name: "Karlu Karlu / Devils Marbles", lat: -20.5650, lon: 134.2610}
-  - {name: "Kings Canyon", lat: -24.2500, lon: 131.5650}
-  - {name: "Uluru", lat: -25.3444, lon: 131.0369}
+  - {name: "Kings Canyon", lat: -24.2500, lon: 131.5650, via: [[-25.2047, 133.1990], [-25.2856, 131.9665]]}
+  - {name: "Uluru", lat: -25.3444, lon: 131.0369, via: [[-25.2047, 133.1990]]}
   - {name: "Coober Pedy", lat: -29.0135, lon: 134.7544}
   - {name: "Flinders Ranges (Wilpena Pound)", lat: -31.5250, lon: 138.6020}
   - {name: "Barossa Valley", lat: -34.5230, lon: 138.9590}

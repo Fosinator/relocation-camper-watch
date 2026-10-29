@@ -1,0 +1,91 @@
+-- Relocation Camper Watch schema. Run at every start (python -m rcw migrate); every statement is idempotent.
+-- Data is never deleted (David 2026-10-29): listings that disappear become status 'gone' and move to History.
+
+CREATE TABLE IF NOT EXISTS relocations (
+    id              bigserial PRIMARY KEY,
+    source          text NOT NULL,                 -- imoova | transfercar
+    listing_id      text NOT NULL,                 -- the site's own id
+    url             text NOT NULL,                 -- direct booking link
+    vehicle_name    text,
+    vehicle_type    text NOT NULL DEFAULT 'other', -- motorhome | campervan | other
+    four_wd         boolean NOT NULL DEFAULT false,
+    berths          int,                           -- NULL = not shown (passes the filter, shows as ****)
+    origin          text,
+    destination     text,
+    pickup_from     date,
+    pickup_to       date,
+    days_included   int,
+    extra_days      int,
+    extra_day_price numeric(10, 2),
+    inclusions      text,
+    bond            numeric(10, 2),
+    operator        text,
+    description     text,
+    matched         boolean NOT NULL DEFAULT false, -- passed every hard filter (re-checked each poll while open)
+    boosted         boolean NOT NULL DEFAULT false, -- hit a keyword or inclusion boost
+    fail_reasons    text,
+    boost_reasons   text,
+    first_seen      timestamptz NOT NULL DEFAULT now(),
+    last_seen       timestamptz NOT NULL DEFAULT now(),
+    matched_at      timestamptz,                   -- first time it passed the filters
+    missed_polls    int NOT NULL DEFAULT 0,        -- consecutive successful polls it was missing from
+    gone_at         timestamptz,
+    status          text NOT NULL DEFAULT 'open',  -- open | gone
+    digested_at     timestamptz,                   -- included in a daily digest
+    alerted_at      timestamptz,                   -- instant alert sent (switched off while gathering data)
+    dup_of          bigint REFERENCES relocations (id), -- same deal on the other site: listed under this row
+    raw             jsonb NOT NULL DEFAULT '{}',
+    UNIQUE (source, listing_id)
+);
+CREATE INDEX IF NOT EXISTS relocations_status_idx ON relocations (status, matched);
+CREATE INDEX IF NOT EXISTS relocations_gone_idx ON relocations (gone_at);
+
+CREATE TABLE IF NOT EXISTS polls (
+    id              bigserial PRIMARY KEY,
+    source          text NOT NULL,
+    started_at      timestamptz NOT NULL,
+    finished_at     timestamptz NOT NULL DEFAULT now(),
+    ok              boolean NOT NULL,
+    skipped         text,
+    listings_found  int,
+    new_listings    int,
+    new_matches     int,
+    gone            int,
+    alerts_sent     int,
+    requests        int,
+    error           text
+);
+CREATE INDEX IF NOT EXISTS polls_source_idx ON polls (source, started_at);
+
+CREATE TABLE IF NOT EXISTS source_state (
+    source               text PRIMARY KEY,
+    last_success         timestamptz,
+    last_failure         timestamptz,
+    failing_since        timestamptz,     -- first failure since the last good poll
+    consecutive_failures int NOT NULL DEFAULT 0,
+    next_attempt_at      timestamptz,     -- backing off until then
+    last_error           text,
+    last_count           int,
+    outage_alerted_at    timestamptz      -- the one Signal alert for this outage has gone
+);
+
+CREATE TABLE IF NOT EXISTS digests (
+    id          bigserial PRIMARY KEY,
+    for_date    date NOT NULL,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    dry_run     boolean NOT NULL,
+    sent        boolean NOT NULL,
+    new_matches int,
+    starred     int,
+    gone        int,
+    text        text
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+    id          bigserial PRIMARY KEY,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    kind        text NOT NULL,             -- outage | instant
+    dry_run     boolean NOT NULL,
+    sent        boolean NOT NULL,
+    text        text
+);

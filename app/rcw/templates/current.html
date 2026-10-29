@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% from "_card.html" import card %}
+{% block main %}
+<h1>Current matches</h1>
+<p class="sub">{{ matches|length }} matching relocation{{ 's' if matches|length != 1 }} out of {{ open_total }} listed right now. Starred ones hit a keyword or include fuel or a ferry.</p>
+<div class="tools">
+  <span class="meta">4WD campers:</span>
+  {% for mode, label in [('include', 'Include'), ('exclude', 'Hide'), ('only', 'Only 4WD')] %}
+    <a class="chip{{ ' on' if fourwd == mode }}" href="?fourwd={{ mode }}{{ '&all=1' if show_all }}">{{ label }}</a>
+  {% endfor %}
+  <span class="meta" style="margin-left:12px">Listings:</span>
+  <a class="chip{{ ' on' if not show_all }}" href="?fourwd={{ fourwd }}">Matches</a>
+  <a class="chip{{ ' on' if show_all }}" href="?fourwd={{ fourwd }}&all=1">Everything</a>
+</div>
+{% if cfg.filters.four_wd != 'include' %}<p class="meta">config.yaml filters 4WD campers: <strong>{{ cfg.filters.four_wd }}</strong>.</p>{% endif %}
+
+{% if matches %}
+  <div class="cards">{% for r in matches %}{{ card(r) }}{% endfor %}</div>
+{% else %}
+  <div class="empty">No matching relocations listed right now. New ones appear here within an hour of going up.</div>
+{% endif %}
+
+<h2>Missed opportunities</h2>
+<p class="sub">Matches that came off the sites in the last {{ keep_days }} days. After that they move to <a href="/history">History</a>.</p>
+{% if missed %}
+  <div class="cards">{% for r in missed %}{{ card(r, missed=true) }}{% endfor %}</div>
+{% else %}
+  <div class="empty">Nothing missed in the last {{ keep_days }} days.</div>
+{% endif %}
+
+{% if show_all %}
+<h2>Not matching ({{ others|length }})</h2>
+<p class="sub">Every other listing, kept for the stats. **** means the site doesn't show that value.</p>
+<div class="tablewrap"><table>
+  <tr><th>Route</th><th>Vehicle</th><th>Type</th><th class="num">Berths</th><th class="num">Days</th><th>Pick up</th><th>Why not</th><th>Site</th></tr>
+  {% for r in others %}
+  <tr>
+    <td>{{ r.origin or '****' }} → {{ r.destination or '****' }}</td>
+    <td class="wrap-cell">{{ r.vehicle_name or '****' }}</td>
+    <td>{{ '4WD ' if r.four_wd }}{{ r.vehicle_type }}</td>
+    <td class="num">{{ r.berths|stars }}</td>
+    <td class="num">{{ r.days_included|stars }}</td>
+    <td>{{ r.pickup_from|d }} – {{ r.pickup_to|d }}</td>
+    <td class="wrap-cell">{{ r.fail_reasons }}</td>
+    <td><a href="{{ r.url }}" target="_blank" rel="noopener">{{ source_label(r.source) }}</a></td>
+  </tr>
+  {% endfor %}
+</table></div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Relocation Camper Watch{% endblock %}</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚐</text></svg>">
+<style>
+:root {
+  --bg: #f6f5f1; --card: #ffffff; --ink: #1d2422; --muted: #66706c; --line: #e2e0d8;
+  --accent: #1f6f5c; --accent-soft: #e3f1ec; --star: #b7791f; --star-soft: #fbf1dc;
+  --bad: #b3392f; --bad-soft: #fbe9e7; --gone: #8a8f8c;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141816; --card: #1d2220; --ink: #e8ece9; --muted: #9aa49f; --line: #2e3532;
+    --accent: #5cc4a6; --accent-soft: #1e332c; --star: #e8b04f; --star-soft: #3a2f1a;
+    --bad: #f08a80; --bad-soft: #3b2220; --gone: #7d8581;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+a { color: var(--accent); }
+header { background: var(--card); border-bottom: 1px solid var(--line); }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 12px 0; }
+.brand { font-weight: 700; font-size: 17px; margin-right: auto; }
+nav a { text-decoration: none; color: var(--muted); padding: 6px 10px; border-radius: 8px; font-weight: 600; }
+nav a.on { color: var(--accent); background: var(--accent-soft); }
+.status { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 8px 0 12px; font-size: 13px; color: var(--muted); }
+.status .ok::before { content: "● "; color: var(--accent); }
+.status .bad { color: var(--bad); font-weight: 600; }
+.status .bad::before { content: "● "; }
+.notice { margin: 12px 0; padding: 10px 14px; border-radius: 10px; background: var(--bad-soft); color: var(--bad); }
+.notice.info { background: var(--star-soft); color: var(--ink); }
+main { padding: 8px 0 48px; }
+h1 { font-size: 22px; margin: 18px 0 4px; }
+h2 { font-size: 17px; margin: 28px 0 10px; }
+.sub { color: var(--muted); margin: 0 0 12px; font-size: 14px; }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 4px; font-size: 14px; }
+.chip { text-decoration: none; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink);
+  background: var(--card); }
+.chip.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex;
+  flex-direction: column; gap: 6px; }
+.card.star { border-color: var(--star); box-shadow: inset 4px 0 0 var(--star); }
+.card.gone { opacity: .75; }
+.route { font-weight: 700; font-size: 17px; }
+.boost { display: inline-block; background: var(--star-soft); color: var(--star); border-radius: 6px; padding: 1px 8px;
+  font-size: 13px; font-weight: 600; }
+.meta { color: var(--muted); font-size: 13px; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 14px; margin: 4px 0; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; }
+.links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 6px; }
+.btn { display: inline-block; text-decoration: none; padding: 7px 12px; border-radius: 8px; background: var(--accent);
+  color: #fff; font-weight: 600; font-size: 14px; }
+.btn.alt { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+@media (prefers-color-scheme: dark) { .btn { color: #0f1513; } .btn.alt { color: var(--accent); } }
+.empty { padding: 18px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); }
+.tablewrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap; }
+td.wrap-cell { white-space: normal; min-width: 180px; }
+th { color: var(--muted); font-weight: 600; font-size: 13px; }
+tr:last-child td { border-bottom: 0; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.bar { display: inline-block; height: 10px; border-radius: 3px; background: var(--accent); vertical-align: middle; }
+.bar.star { background: var(--star); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.big { font-size: 26px; font-weight: 700; }
+.pager { display: flex; gap: 10px; margin: 12px 0; }
+footer { color: var(--muted); font-size: 12px; padding: 24px 0; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">🚐 Relocation Camper Watch</div>
+      <nav>
+        <a href="/" class="{{ 'on' if page == 'current' }}">Current</a>
+        <a href="/history" class="{{ 'on' if page == 'history' }}">History</a>
+        <a href="/stats" class="{{ 'on' if page == 'stats' }}">Stats</a>
+      </nav>
+    </div>
+    <div class="status">
+      {% for s in sources %}
+        {% if not s.enabled %}
+          <span>{{ s.label }}: switched off</span>
+        {% elif s.failing_since %}
+          <span class="bad" title="{{ s.last_error }}">{{ s.label }}: failing since {{ s.failing_since|dt }}{% if s.simulated %} (simulated outage){% endif %} · last good {{ s.last_success|dt if s.last_success else 'never' }}</span>
+        {% elif s.last_success %}
+          <span class="ok">{{ s.label }}: updated {{ s.last_success|dt }} · {{ s.last_count }} listings</span>
+        {% else %}
+          <span>{{ s.label }}: waiting for the first poll</span>
+        {% endif %}
+      {% endfor %}
+      {% if next_poll %}<span>Next poll {{ next_poll|dt }}</span>{% endif %}
+    </div>
+  </div>
+</header>
+<div class="wrap">
+  {% if config_error %}<div class="notice">{{ config_error }}</div>{% endif %}
+  {% if dry_run %}<div class="notice info">Dry-run mode: digests and alerts are written to the log, not sent to Signal.</div>{% endif %}
+  {% for s in sources if s.failing_since and s.last_error %}
+    <div class="notice"><strong>{{ s.label }}</strong> has been failing since {{ s.failing_since|dt }}: {{ s.last_error }}{% if s.next_attempt_at %} · next try {{ s.next_attempt_at|dt }}{% endif %}</div>
+  {% endfor %}
+  <main>{% block main %}{% endblock %}</main>
+  <footer>Relocation Camper Watch {{ version }} · public listings from Imoova and Transfercar · booking stays manual</footer>
+</div>
+</body>
+</html>

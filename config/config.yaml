@@ -1,0 +1,45 @@
+# Relocation Camper Watch settings.
+# Lives at /mnt/user/appdata/relocation-camper-watch/config/config.yaml on andstar1 (the deploy only copies this
+# file there the first time; after that, edit it on the server). Changes are picked up at the next poll - no
+# restart - except schedule.poll_hours. Secrets (database, Signal numbers) are in app.env, not here.
+
+# Hard filters: a listing "matches" only if it passes every one. A value the site doesn't show counts as passed.
+filters:
+  vehicle_types: [motorhome, campervan]   # normalised types: motorhome, campervan, other
+  four_wd: include                        # 4WD campers: include | exclude | only
+  min_berths: 2
+  cities: [Hobart, Melbourne, Sydney, Brisbane, Adelaide, Perth]   # the origin OR destination must be one
+  min_days: 4                             # included ($1/day or free) days
+  pickup_within_days: 60
+
+# Boosts: a hit stars the listing (and lists it first). They never filter anything out.
+# Matched case-insensitively against the vehicle name and description; "-" and " " count as the same.
+boosts:
+  keywords: [rear lounge, drop-down bed, island bed, Winnebago, Avida, Iveco, Sprinter]
+  inclusions: [fuel, ferry]
+
+schedule:
+  poll_hours: "6-22"          # Hobart time, on the hour (restart after changing this one)
+  jitter_seconds: 120         # random 0-2 min delay before each poll
+  digest_time: "16:00"
+  gone_after_missed_polls: 2  # missing from this many successful polls in a row = gone
+  history_after_days: 2       # gone matches stay on the Current page as "missed" this long
+  backoff_max_hours: 8        # after errors: wait 1, 2, 4, 8 h between tries
+  blocked_backoff_hours: 24   # after a 403 / 429 from the site
+
+alerts:
+  dry_run: false              # true = the digest and alerts are written to the log, not sent
+  instant_starred: false      # later: one Signal message per new starred match, with its booking link
+  outage_hours: 24            # one Signal alert when a site has had no good poll for this long
+  digest_max_listed: 10       # deals listed in the digest (the counts always cover everything)
+  db_size_warn_mb: 500        # the digest warns when the database grows past this
+
+sources:
+  imoova:
+    enabled: true
+    simulate_outage: false    # true = every poll fails, to test the outage handling
+    details_per_poll: 40      # listing pages fetched per poll for new motorhomes / campervans
+  transfercar:
+    enabled: true
+    simulate_outage: false
+    details_per_poll: 40

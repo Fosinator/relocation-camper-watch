@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}History · Relocation Camper Watch{% endblock %}
+{% block main %}
+<h1>History</h1>
+<p class="sub">{{ total }} {{ 'listings' if show_all else 'matches' }} that came off the sites more than {{ cfg.schedule.history_after_days }} days ago. Nothing is ever deleted.</p>
+<div class="tools">
+  <a class="chip{{ ' on' if not show_all }}" href="/history">Matches</a>
+  <a class="chip{{ ' on' if show_all }}" href="/history?all=1">Everything</a>
+</div>
+{% if rows %}
+<div class="tablewrap"><table>
+  <tr><th>Route</th><th>Vehicle</th><th class="num">Berths</th><th class="num">Days</th><th>Pick up</th><th>Includes</th><th>First seen</th><th>Gone</th><th class="num">Listed for</th><th>Site</th></tr>
+  {% for r in rows %}
+  <tr>
+    <td>{{ '⭐ ' if r.boosted and r.matched }}{{ r.origin or '****' }} → {{ r.destination or '****' }}</td>
+    <td class="wrap-cell">{{ r.vehicle_name or '****' }}{% if r.four_wd %} (4WD){% endif %}</td>
+    <td class="num">{{ r.berths|stars }}</td>
+    <td class="num">{{ r.days_included|stars }}{% if r.extra_days %} +{{ r.extra_days }}{% endif %}</td>
+    <td>{{ r.pickup_from|d }} – {{ r.pickup_to|d }}</td>
+    <td class="wrap-cell">{{ r.inclusions or '' }}</td>
+    <td>{{ r.first_seen|dt }}</td>
+    <td>{{ r.gone_at|dt }}</td>
+    <td class="num">{{ ((r.last_seen - r.first_seen).total_seconds())|span }}</td>
+    <td><a href="{{ r.url }}" target="_blank" rel="noopener">{{ source_label(r.source) }}</a></td>
+  </tr>
+  {% endfor %}
+</table></div>
+{% if pages > 1 %}
+<div class="pager">
+  {% if page_no > 1 %}<a class="chip" href="?page={{ page_no - 1 }}{{ '&all=1' if show_all }}">← Newer</a>{% endif %}
+  <span class="meta">Page {{ page_no }} of {{ pages }}</span>
+  {% if page_no < pages %}<a class="chip" href="?page={{ page_no + 1 }}{{ '&all=1' if show_all }}">Older →</a>{% endif %}
+</div>
+{% endif %}
+{% else %}
+  <div class="empty">Nothing here yet. Matches move here {{ cfg.schedule.history_after_days }} days after they come off the sites.</div>
+{% endif %}
+{% endblock %}

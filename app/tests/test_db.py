@@ -1,0 +1,133 @@
+"""Against a real, throw-away Postgres database (TEST_DATABASE_URL; deploy.sh points it at relocation_watch_test).
+
+Covers the acceptance criteria that need the database: re-polling creates no duplicates, gone after two missed
+polls, filter edits apply at the next poll, an outage shows up and alerts once, dry-run digests, and a deal on
+both sites listed once with both links.
+"""
+import os
+from datetime import date, datetime, timedelta, timezone
+
+import pytest
+
+from rcw import alerts, db, digest, poller, settings
+from rcw.sources import Listing
+
+URL = os.environ.get("TEST_DATABASE_URL")
+pytestmark = pytest.mark.skipif(not URL, reason="TEST_DATABASE_URL not set")
+
+T0 = datetime(2026, 10, 29, 3, 0, tzinfo=timezone.utc)  # 14:00 in Hobart
+
+
+@pytest.fixture(autouse=True)
+def database(monkeypatch):
+    monkeypatch.setattr(settings, "DATABASE_URL", URL)
+    monkeypatch.setattr(settings, "DRY_RUN", True)
+    with db.conn() as c:
+        c.execute("DROP TABLE IF EXISTS relocations, polls, source_state, digests, messages CASCADE")
+        db.migrate(c)
+
+
+class Fake:
+    def __init__(self, name, listings):
+        self.name, self.label, self.listings, self.fail = name, name.title(), listings, None
+
+    def fetch(self, http, cfg, cached):
+        if self.fail:
+            raise self.fail
+        return list(self.listings)
+
+
+class NoHttp:
+    requests = 0
+
+    def close(self):
+        pass
+
+
+def listing(source, lid, **kw):
+    base = dict(url=f"https://{source}.test/{lid}", vehicle_name="4 Berth Motorhome", vehicle_type="motorhome",
+                berths=4, origin="Melbourne", destination="Hobart", pickup_from=date(2026, 11, 2),
+                pickup_to=date(2026, 11, 20), days_included=6)
+    return Listing(source=source, listing_id=lid, **{**base, **kw})
+
+
+def run(src, cfg, now, **kw):
+    return poller.poll(src.name, cfg=cfg, src=src, http=NoHttp(), now=now, **kw)
+
+
+def rows(where="TRUE"):
+    with db.conn() as c:
+        return c.execute(f"SELECT * FROM relocations WHERE {where} ORDER BY id").fetchall()
+
+
+def test_repolling_creates_no_duplicates(cfg):
+    src = Fake("imoova", [listing("imoova", "1"), listing("imoova", "2", berths=1)])
+    first = run(src, cfg, T0)
+    second = run(src, cfg, T0 + timedelta(hours=1))
+    assert (first["new_listings"], first["new_matches"]) == (2, 1)
+    assert (second["new_listings"], second["new_matches"]) == (0, 0)
+    assert len(rows()) == 2
+    assert [r["matched"] for r in rows()] == [True, False]
+
+
+def test_gone_after_two_missed_polls_and_failures_dont_count(cfg):
+    src = Fake("imoova", [listing("imoova", "1"), listing("imoova", "2")])
+    run(src, cfg, T0)
+    src.listings = [listing("imoova", "1")]
+    run(src, cfg, T0 + timedelta(hours=1))
+    assert rows("listing_id = '2'")[0]["status"] == "open"
+    src.fail = RuntimeError("site down")
+    run(src, cfg, T0 + timedelta(hours=2), force=True)
+    assert rows("listing_id = '2'")[0]["missed_polls"] == 1  # the failed poll didn't count
+    src.fail = None
+    run(src, cfg, T0 + timedelta(hours=3), force=True)
+    gone = rows("listing_id = '2'")[0]
+    assert gone["status"] == "gone" and gone["gone_at"] == T0 + timedelta(hours=3)
+    src.listings = [listing("imoova", "1"), listing("imoova", "2")]  # back again
+    run(src, cfg, T0 + timedelta(hours=4))
+    assert rows("listing_id = '2'")[0]["status"] == "open"
+
+
+def test_filter_change_applies_at_next_poll(cfg):
+    src = Fake("imoova", [listing("imoova", "1")])
+    run(src, cfg, T0)
+    cfg["filters"]["min_days"] = 10
+    run(src, cfg, T0 + timedelta(hours=1))
+    r = rows()[0]
+    assert not r["matched"] and r["fail_reasons"] == "6 days"
+
+
+def test_backoff_then_outage_alert_once(cfg):
+    src = Fake("transfercar", [listing("transfercar", "1")])
+    cfg["sources"]["transfercar"]["simulate_outage"] = True
+    out = run(src, cfg, T0)
+    assert "simulated outage" in out["error"]
+    assert run(src, cfg, T0 + timedelta(minutes=30))["skipped"].startswith("backing off")
+    with db.conn() as c:
+        st = db.source_state(c, "transfercar")
+    assert st["failing_since"] == T0 and st["consecutive_failures"] == 1
+    assert alerts.check_outages(cfg, T0 + timedelta(hours=23)) == 0
+    assert alerts.check_outages(cfg, T0 + timedelta(hours=25)) == 1
+    assert alerts.check_outages(cfg, T0 + timedelta(hours=26)) == 0  # one message per outage
+    text = digest.preview(cfg, T0 + timedelta(hours=26))
+    assert "⚠ Transfercar:" in text and "failing since" in text and "simulated outage" in text
+    cfg["sources"]["transfercar"]["simulate_outage"] = False
+    run(src, cfg, T0 + timedelta(hours=27), force=True)
+    with db.conn() as c:
+        st = db.source_state(c, "transfercar")
+    assert st["failing_since"] is None and st["outage_alerted_at"] is None
+
+
+def test_digest_dry_run_and_duplicates(cfg, capsys):
+    cfg["alerts"]["dry_run"] = True
+    im = Fake("imoova", [listing("imoova", "1", inclusions="Ferry included")])
+    tc = Fake("transfercar", [listing("transfercar", "A", berths=None)])
+    run(im, cfg, T0)
+    run(tc, cfg, T0 + timedelta(minutes=5))
+    assert digest.send(cfg, T0 + timedelta(hours=3))
+    out = capsys.readouterr().out
+    assert "DRY RUN" in out
+    assert "1 new match (1 ⭐) · 0 gone" in out
+    assert "https://imoova.test/1" in out and "also on Transfercar: https://transfercar.test/A" in out
+    assert all(r["digested_at"] for r in rows())
+    assert "0 new matches" in digest.preview(cfg, T0 + timedelta(days=1))

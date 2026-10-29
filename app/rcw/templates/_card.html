@@ -1,0 +1,23 @@
+{% macro card(r, missed=false) %}
+<article class="card{{ ' star' if r.boosted }}{{ ' gone' if missed }}">
+  <div class="route">{{ r.origin or '****' }} → {{ r.destination or '****' }}</div>
+  {% if r.boosted %}<div><span class="boost">⭐ {{ r.boost_reasons }}</span></div>{% endif %}
+  <div>{{ r.vehicle_name or '****' }}</div>
+  <dl class="facts">
+    <dt>Type</dt><dd>{{ '4WD ' if r.four_wd }}{{ r.vehicle_type }} · {{ r.berths|stars }} berths</dd>
+    <dt>Days</dt><dd>{{ r.days_included|stars }} included{% if r.extra_days %} + up to {{ r.extra_days }} extra at {{ r.extra_day_price|money }}/day{% endif %}</dd>
+    <dt>Pick up</dt><dd>{{ r.pickup_from|d }} – {{ r.pickup_to|d }}</dd>
+    {% if r.inclusions %}<dt>Includes</dt><dd>{{ r.inclusions }}</dd>{% endif %}
+    {% if r.bond is not none %}<dt>Bond</dt><dd>{{ r.bond|money }}</dd>{% endif %}
+    {% if r.operator %}<dt>Operator</dt><dd>{{ r.operator }}</dd>{% endif %}
+  </dl>
+  <div class="meta">
+    {% if missed %}Gone {{ r.gone_at|dt }} · was listed {{ ((r.last_seen - r.first_seen).total_seconds())|span }}
+    {% else %}Seen since {{ r.first_seen|dt }}{% endif %}
+  </div>
+  <div class="links">
+    <a class="btn{{ ' alt' if missed }}" href="{{ r.url }}" target="_blank" rel="noopener">{{ 'Was on' if missed else 'Book on' }} {{ source_label(r.source) }} →</a>
+    {% for d in r.dups %}<a class="btn alt" href="{{ d.url }}" target="_blank" rel="noopener">Also on {{ source_label(d.source) }} →</a>{% endfor %}
+  </div>
+</article>
+{% endmacro %}

@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>relocation-camper-watch</Name>
+  <Repository>python:3.12-slim</Repository>
+  <Registry>https://hub.docker.com/_/python</Registry>
+  <Network>br0</Network>
+  <MyIP></MyIP>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/Fosinator/relocation-camper-watch</Support>
+  <Project>https://github.com/Fosinator/relocation-camper-watch</Project>
+  <Overview>Relocation Camper Watch: watches Imoova and Transfercar for motorhome relocations in Australia, dashboard http://10.1.1.200, daily Signal digest at 4 pm. Code from GitHub via scripts/deploy.sh; filters in config/config.yaml (edit on the server, picked up at the next poll); secrets in config/app.env (not in git); database relocation_watch on exp-v2-db over v2-net; Signal over signal-net.</Overview>
+  <Category>Tools:</Category>
+  <WebUI>http://10.1.1.200/</WebUI>
+  <TemplateURL/>
+  <Icon>https://raw.githubusercontent.com/docker-library/docs/master/python/logo.png</Icon>
+  <ExtraParams>--network name=br0,ip=10.1.1.200,mac-address=02:42:0a:01:01:c8 --network v2-net --network signal-net --env-file /mnt/user/appdata/relocation-camper-watch/config/app.env --restart unless-stopped</ExtraParams>
+  <PostArgs>sh /app/start.sh</PostArgs>
+  <CPUset/>
+  <DateInstalled></DateInstalled>
+  <Requires/>
+  <Config Name="App code" Target="/app" Default="/mnt/user/appdata/relocation-camper-watch/app" Mode="ro" Description="Code deployed from GitHub" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/relocation-camper-watch/app</Config>
+  <Config Name="Config" Target="/config" Default="/mnt/user/appdata/relocation-camper-watch/config" Mode="ro" Description="config.yaml (filters, schedule, alerts) and app.env (secrets)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/relocation-camper-watch/config</Config>
+  <Config Name="Data" Target="/data" Default="/mnt/user/appdata/relocation-camper-watch/data" Mode="rw" Description="Deploy log and database dumps taken before each deploy" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/relocation-camper-watch/data</Config>
+  <Config Name="Python venv" Target="/venv" Default="/mnt/user/appdata/relocation-camper-watch/venv" Mode="rw" Description="Rebuilt when requirements change (excluded from backups)" Type="Path" Display="advanced" Required="true" Mask="false">/mnt/user/appdata/relocation-camper-watch/venv</Config>
+  <Config Name="TZ" Target="TZ" Default="Australia/Hobart" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false">Australia/Hobart</Config>
+  <Config Name="PYTHONDONTWRITEBYTECODE" Target="PYTHONDONTWRITEBYTECODE" Default="1" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false">1</Config>
+</Container>

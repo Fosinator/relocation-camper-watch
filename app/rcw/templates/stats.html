@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Stats · Relocation Camper Watch{% endblock %}
+{% block main %}
+{% set what = 'listings' if show_all else 'matches' %}
+<h1>Stats</h1>
+<p class="sub">{{ s.totals.stored }} listings stored since {{ s.totals.since|dt if s.totals.since else '—' }} ({{ s.totals.matched }} matched, {{ s.totals.open }} listed now). A deal on both sites counts once.</p>
+<div class="tools">
+  <a class="chip{{ ' on' if not show_all }}" href="/stats">Matches</a>
+  <a class="chip{{ ' on' if show_all }}" href="/stats?all=1">Every listing</a>
+</div>
+
+<div class="grid2">
+  <section class="tile">
+    <h2 style="margin-top:0">New {{ what }} per week</h2>
+    {% if s.weeks %}
+    <table>
+      <tr><th>Week of</th><th class="num">{{ what|capitalize }}</th><th class="num">⭐</th><th></th></tr>
+      {% for w in s.weeks %}
+      <tr><td>{{ w.week|d }}</td><td class="num">{{ w.n }}</td><td class="num">{{ w.starred }}</td>
+        <td style="width:45%"><span class="bar" style="width:{{ (100 * w.n / s.week_max)|round(1) }}%"></span></td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="meta">No data yet.</p>{% endif %}
+  </section>
+
+  <section class="tile">
+    <h2 style="margin-top:0">Top routes</h2>
+    {% if s.routes %}
+    <table>
+      <tr><th>Route</th><th class="num">{{ what|capitalize }}</th><th class="num">Avg days</th><th></th></tr>
+      {% for r in s.routes %}
+      <tr><td>{{ r.route }}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.avg_days|stars }}</td>
+        <td style="width:35%"><span class="bar" style="width:{{ (100 * r.n / s.route_max)|round(1) }}%"></span></td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="meta">No data yet.</p>{% endif %}
+  </section>
+
+  <section class="tile">
+    <h2 style="margin-top:0">Days included</h2>
+    {% if s.days.n %}
+    <div class="big">{{ s.days.median|round(1) }} days</div>
+    <p class="meta">Median of {{ s.days.n }} {{ what }} (range {{ s.days.min }}–{{ s.days.max }}).</p>
+    {% set dmax = [s.days.d1_3, s.days.d4_5, s.days.d6_7, s.days.d8_10, s.days.d11, 1]|max %}
+    <table>
+      {% for label, n in [('1–3', s.days.d1_3), ('4–5', s.days.d4_5), ('6–7', s.days.d6_7), ('8–10', s.days.d8_10), ('11+', s.days.d11)] %}
+      <tr><td>{{ label }} days</td><td class="num">{{ n }}</td><td style="width:55%"><span class="bar" style="width:{{ (100 * n / dmax)|round(1) }}%"></span></td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="meta">No data yet.</p>{% endif %}
+  </section>
+
+  <section class="tile">
+    <h2 style="margin-top:0">Time until gone</h2>
+    {% set all_row = s.gone|selectattr('vehicle_type', 'none')|first %}
+    {% if all_row and all_row.n %}
+    <div class="big">{{ all_row.median_s|span }}</div>
+    <p class="meta">Median time from first seen to last seen, over {{ all_row.n }} {{ what }} that have gone. Polls are hourly, so this is ± 1 hour.</p>
+    <table>
+      <tr><th>Vehicle type</th><th class="num">Gone</th><th class="num">Median</th></tr>
+      {% for g in s.gone if g.vehicle_type %}
+      <tr><td>{{ g.vehicle_type }}</td><td class="num">{{ g.n }}</td><td class="num">{{ g.median_s|span }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="meta">Nothing has gone yet.</p>{% endif %}
+  </section>
+
+  <section class="tile">
+    <h2 style="margin-top:0">Hobart routes</h2>
+    {% set h = s.hobart %}
+    {% if h.total %}
+    <div class="big">{{ h.any }} of {{ h.total }}</div>
+    <p class="meta">{{ what|capitalize }} starting or ending in Hobart ({{ (100 * h.any / h.total)|round(1) }}%): {{ h.from_hobart }} from Hobart, {{ h.to_hobart }} to Hobart.{% if h.last_seen %} Latest one first seen {{ h.last_seen|dt }}.{% endif %}</p>
+    {% if s.hobart_routes %}
+    <table>{% for r in s.hobart_routes %}<tr><td>{{ r.route }}</td><td class="num">{{ r.n }}</td></tr>{% endfor %}</table>
+    {% endif %}
+    {% else %}<p class="meta">No data yet.</p>{% endif %}
+  </section>
+
+  <section class="tile">
+    <h2 style="margin-top:0">Polling, last 7 days</h2>
+    <table>
+      <tr><th>Site</th><th class="num">Good</th><th class="num">Failed</th><th class="num">Skipped</th><th class="num">Avg listings</th></tr>
+      {% for p in s.polls %}
+      <tr><td>{{ source_label(p.source) }}</td><td class="num">{{ p.good }}</td><td class="num">{{ p.bad }}</td><td class="num">{{ p.skipped }}</td><td class="num">{{ p.avg_found|stars }}</td></tr>
+      {% endfor %}
+    </table>
+    <p class="meta">Database: {{ s.db_mb|round(1) }} MB (warning in the digest above {{ cfg.alerts.db_size_warn_mb }} MB).</p>
+  </section>
+</div>
+
+<h2>Recent polls</h2>
+<div class="tablewrap"><table>
+  <tr><th>Time</th><th>Site</th><th>Result</th><th class="num">Listings</th><th class="num">New</th><th class="num">New matches</th><th class="num">Gone</th><th class="num">Requests</th><th>Error</th></tr>
+  {% for p in s.recent %}
+  <tr>
+    <td>{{ p.started_at|dt }}</td><td>{{ source_label(p.source) }}</td>
+    <td>{{ 'ok' if p.ok else ('skipped' if p.skipped else 'FAILED') }}</td>
+    <td class="num">{{ p.listings_found if p.listings_found is not none else '' }}</td>
+    <td class="num">{{ p.new_listings if p.new_listings is not none else '' }}</td>
+    <td class="num">{{ p.new_matches if p.new_matches is not none else '' }}</td>
+    <td class="num">{{ p.gone if p.gone is not none else '' }}</td>
+    <td class="num">{{ p.requests if p.requests is not none else '' }}</td>
+    <td class="wrap-cell">{{ p.error or p.skipped or '' }}</td>
+  </tr>
+  {% endfor %}
+</table></div>
+{% endblock %}

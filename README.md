@@ -4,8 +4,9 @@ Watches **Imoova** and **Transfercar** for motorhome and campervan relocations i
 relocations can be used to try motorhome layouts before buying one. Booking stays manual: no logins, no payments.
 
 - **Dashboard:** http://10.1.1.200 (home network only, no login)
-  - **Current:** ways home to Hobart first, then open matches (starred first) with trip stats, and missed
-    opportunities from the last 2 days
+  - **Current:** open matches (starred first) with trip stats, From/To dropdowns, "↪ onward" links for chaining
+    relocations together, and missed opportunities from the last 2 days
+  - **Ways home:** relocations into Hobart with the ferry included, cheapest first, with the cost home
   - **History:** matches that went more than 2 days ago (nothing is ever deleted)
   - **Stats:** matches per week, top routes, days included, time until gone, Hobart routes, polling health
 - **Signal:** one digest a day at 4 pm Hobart time, sent on quiet days too. It also carries site failures and a
@@ -158,9 +159,18 @@ can sort by most room to explore.
 ## Ways home
 
 A relocation into `home.city` (Hobart) with the Bass Strait ferry included is a cheap way home from the
-mainland. The hard filters don't apply here: any vehicle counts, including a hi-top or a car. The Current page
-lists them first. When the same van is on both sites (same origin, vehicle type, berths and first pickup day),
-it's shown once with both links.
+mainland. The hard filters don't apply here: any vehicle counts, including a hi-top or a car. They're on their
+own page (`/home`), cheapest first, with From filters. Each card has a short ferry summary, such as "sailing
+booked Geelong → Devonport 17 Nov 6:45pm" or "book your own, refunded up to $350", with the operator's full
+wording folded away. When the same van is on both sites (same origin, vehicle type, berths and first pickup
+day), it's shown once with both links.
+
+## Chaining relocations
+
+The Current page has From and To dropdowns. Each card shows "↪ N onward legs from <destination>": matches that
+start where it ends and pick up while you could be there. That window runs from the first pickup day plus the
+fewest days the drive takes at 9 h a day, to the last pickup day plus every included and extra day. Following
+the link shows those legs, and each of them shows its own onward legs (`rcw/chain.py`).
 
 **Cost home** = hire ($1 a day) + the booking fee (Imoova states it; Transfercar doesn't) + fuel for the route
 less any fuel allowance + a ferry seat for each extra passenger (`home.passengers`), if

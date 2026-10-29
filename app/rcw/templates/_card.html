@@ -36,6 +36,9 @@
     {% if missed %}Gone {{ r.gone_at|dt }} · was listed {{ ((r.last_seen - r.first_seen).total_seconds())|span }}
     {% else %}Seen since {{ r.first_seen|dt }}{% endif %}
   </div>
+  {% if not missed and r.onward is defined and r.onward %}
+  <div><a class="onward" href="/{{ qs({'fourwd': fourwd, 'sort': sort}, after=r.id) }}#matches">↪ {{ r.onward }} onward leg{{ 's' if r.onward != 1 }} from {{ r.destination }}</a></div>
+  {% endif %}
   <div class="links">
     <a class="btn{{ ' alt' if missed }}" href="{{ r.url }}" target="_blank" rel="noopener">{{ 'Was on' if missed else 'Book on' }} {{ source_label(r.source) }} →</a>
     {% for d in r.dups %}<a class="btn alt" href="{{ d.url }}" target="_blank" rel="noopener">Also on {{ source_label(d.source) }} →</a>{% endfor %}

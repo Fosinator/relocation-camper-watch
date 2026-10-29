@@ -49,18 +49,26 @@ def test_same_van_on_both_sites_is_one_deal(cfg):
         d["home_cost"], d["ferry"], d["fuel_allowance"] = home.cost(d, cfg), home.ferry_text(d["inclusions"]), None
     lines = home.message_lines(deals[0])
     assert lines[0] == "Sydney → Hobart · 6-berth motorhome · 5 days · pick up 16 Nov"
-    assert lines[1] == "⛴ ferry Geelong to Devonport 17.11.2026 6:45pm (Recliner)"
+    assert lines[1] == "⛴ ferry sailing booked Geelong → Devonport 17 Nov 6:45pm"
     assert lines[2] == "About $444 out of pocket (plus a ferry seat for 1 more passenger)"
     assert lines[3].startswith("Imoova: https://") and lines[4].startswith("Transfercar: https://")
 
 
-def test_long_ferry_text_is_shortened_in_the_message(cfg):
-    long = ("Ferry included This relocation includes reimbursement for the ferry ticket for the vehicle and 1 "
-            "driver in a recliner seat up to $350. Cabin upgades or additional passengers will NOT be reimbursed.")
-    r = row(inclusions=long)
-    r.update(also=[], home_cost=home.cost(r, cfg), ferry=home.ferry_text(long), fuel_allowance=None)
-    line = home.message_lines(r)[1]
-    assert len(line) < 100 and line.endswith("…") and line.startswith("⛴ ferry This relocation includes")
+def test_ferry_summaries_from_the_live_wording():
+    s = home.ferry_summary
+    assert s("This relocation includes reimbursement for the ferry ticket for the vehicle and 1 driver in a "
+             "recliner seat up to $350. Cabin upgades or additional passengers will NOT be reimbursed.") \
+        == "refunded up to $350"
+    assert s("Book own ferry. $350 refundable against receipt for vehicle with 1 person in recliner seat") \
+        == "book your own, refunded up to $350"
+    assert s("Free ferry for vehicle and driver. geelong to devonport 17.11.2026 6:45pm (recliner)") \
+        == "sailing booked Geelong → Devonport 17 Nov 6:45pm"
+    assert s("Geelong to Devenport 19.11.2026 6:45pm (Recliner)") == "sailing booked 19 Nov 6:45pm"  # their typo
+    assert s("Bass Strait ferry included for 1 vehicle + 1 passenger. Additional passengers can be added") \
+        == "included for the vehicle + 1 passenger"
+    assert s("Ferry spot for the vehicle and driver (ocean recliner) booked by rental operator") \
+        == "included for the vehicle + driver"
+    assert s(None) == "included for the vehicle + driver"
 
 
 def test_where_from_cities(cfg):

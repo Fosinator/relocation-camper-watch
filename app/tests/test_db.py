@@ -162,17 +162,20 @@ def test_every_page_renders_with_trip_stats(cfg, monkeypatch):
     with db.conn() as c:
         c.execute("UPDATE relocations SET trip = %s", (db.Jsonb(trips.stats(rows()[0], direct, cfg)),))
     client = TestClient(web.app)  # no "with": the scheduler stays off
-    for path in ["/", "/?sort=explore", "/?sort=soonest&fourwd=only", "/?all=1", "/history", "/history?all=1",
-                 "/stats", "/stats?all=1"]:
+    for path in ["/", "/?sort=explore", "/?sort=soonest&fourwd=only", "/?all=1", "/?from=Darwin&to=Adelaide",
+                 f"/?after={rows()[0]['id']}", "/?from=Nowhere", "/home", "/home?from=Sydney&sort=days",
+                 "/history", "/history?all=1", "/stats", "/stats?all=1"]:
         r = client.get(path)
         assert r.status_code == 200, (path, r.text[:300])
     page = client.get("/").text
     assert "trip stats" in page and "3,400 km: 378 km beyond the route" in page and "$0.50/km" in page
     assert "limited by the days" in page and "limited by the km cap" in page
-    assert "Ways home to Hobart" in page and "No ways home to Hobart listed right now." in page
+    assert '<option value="Darwin">Darwin (1)</option>' in page
+    assert "No ways home to Hobart listed right now." in client.get("/home").text
+    assert "Following on from Darwin → Adelaide" in client.get(f"/?after={rows()[0]['id']}").text
 
 
-def test_ways_home_baseline_then_one_alert_each(cfg, capsys):
+def test_ways_home_baseline_then_one_alert_each(cfg, capsys, monkeypatch):
     cfg["alerts"]["dry_run"] = True
     ferry = "Ferry included Free ferry for vehicle and driver"
     src = Fake("imoova", [listing("imoova", "1", origin="Sydney", destination="Hobart", inclusions=ferry),
@@ -188,6 +191,20 @@ def test_ways_home_baseline_then_one_alert_each(cfg, capsys):
     run(src, cfg, T0 + timedelta(hours=2))  # already alerted: nothing more
     assert "New way home" not in capsys.readouterr().out
     assert "🏠 2 ways home to Hobart listed" in digest.preview(cfg, T0 + timedelta(hours=2))
+
+    from fastapi.testclient import TestClient
+
+    from rcw import config, web
+    monkeypatch.setattr(config, "load", lambda path=None: cfg)
+    monkeypatch.setattr(web.timefmt, "today", lambda ts=None: T0.date())
+    client = TestClient(web.app)
+    page = client.get("/home").text
+    assert "Sydney → Hobart" in page and "Melbourne → Hobart" in page and "⛽ $250 fuel" in page
+    assert "included for the vehicle + driver" in page and "Book on Imoova" in page
+    sydney = client.get("/home?from=Sydney").text   # the summary tiles still cover every city; the cards don't
+    assert '<div class="route">Sydney → Hobart</div>' in sydney
+    assert '<div class="route">Melbourne → Hobart</div>' not in sydney
+    assert "2 ways home to Hobart" in client.get("/").text
 
 
 def test_digest_dry_run_and_duplicates(cfg, capsys):

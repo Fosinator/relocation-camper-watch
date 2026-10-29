@@ -1,54 +1,62 @@
 {% extends "base.html" %}
 {% from "_card.html" import card with context %}
 {% block main %}
-{% if cfg.home.city %}
-<h1>🏠 Ways home to {{ cfg.home.city }}</h1>
-<p class="sub">Relocations into {{ cfg.home.city }}{% if cfg.home.require_ferry %} with the ferry included{% endif %}, any vehicle. The ferry deals cover the vehicle and driver; {% if cfg.home.passengers > 1 %}{{ cfg.home.passengers - 1 }} more passenger{{ 's' if cfg.home.passengers > 2 }} pay{{ 's' if cfg.home.passengers == 2 }} their own seat. {% endif %}New ones go to Signal straight away.</p>
 {% if ways_home %}
-<div class="tablewrap"><table>
-  <tr><th>From</th><th>Vehicle</th><th class="num">Days</th><th>Pick up</th><th>Ferry</th><th>Fuel</th><th>Drive</th><th class="num">About</th><th>Book</th></tr>
-  {% for r in ways_home %}
-  {% set c = r.home_cost %}
-  <tr>
-    <td><strong>{{ r.origin or '****' }}</strong></td>
-    <td class="wrap-cell">{{ r.vehicle_name or '****' }}{% if r.berths %} · {{ r.berths }} berths{% endif %}</td>
-    <td class="num">{{ r.days_included|stars }}{% if r.extra_days %} +{{ r.extra_days }}{% endif %}</td>
-    <td>{{ r.pickup_from|d }} – {{ r.pickup_to|d }}</td>
-    <td class="wrap-cell">{{ r.ferry }}</td>
-    <td>{{ r.fuel_allowance|money if r.fuel_allowance else '—' }}</td>
-    <td>{% if r.trip and r.trip.pace %}{{ r.trip.drive_hours }} h · {{ r.trip.pace }}{% else %}—{% endif %}</td>
-    <td class="num" title="{% for label, amount in c.parts %}{{ label }} ${{ amount }}{{ '; ' if not loop.last }}{% endfor %}{% for n in c.notes %}; {{ n }}{% endfor %}"><strong>{{ c.total|money }}</strong>{% if c.notes %}<br><span class="meta">{{ c.notes|join('; ') }}</span>{% endif %}</td>
-    <td><a href="{{ r.url }}" target="_blank" rel="noopener">{{ source_label(r.source) }}</a>{% for a in r.also %}<br><a href="{{ a.url }}" target="_blank" rel="noopener">{{ source_label(a.source) }}</a>{% endfor %}</td>
-  </tr>
-  {% endfor %}
-</table></div>
-{% else %}
-  <div class="empty">No ways home to {{ cfg.home.city }} listed right now.</div>
-{% endif %}
+<a class="home-teaser" href="/home">🏠 <strong>{{ ways_home|length }} way{{ "s" if ways_home|length != 1 }} home to {{ cfg.home.city }}</strong> from {{ (ways_home|map(attribute="home_cost")|map(attribute="total")|min)|money }} <span class="meta">→ see them all</span></a>
 {% endif %}
 
-<h1>Current matches</h1>
-<p class="sub">{{ matches|length }} matching relocation{{ 's' if matches|length != 1 }} out of {{ open_total }} listed right now. Starred ones hit a keyword or include fuel or a ferry.</p>
+<h1 id="matches">Current matches</h1>
+<p class="sub">{{ matches|length }} matching relocation{{ 's' if matches|length != 1 }}{% if filtered %} shown{% endif %} out of {{ open_total }} listed right now. Starred ones hit a keyword or include fuel or a ferry.</p>
+<form class="tools" method="get" action="/#matches">
+  <input type="hidden" name="fourwd" value="{{ fourwd }}"><input type="hidden" name="sort" value="{{ sort }}">
+  {% if show_all %}<input type="hidden" name="all" value="1">{% endif %}
+  <label class="meta">From
+    <select name="from" onchange="this.form.submit()">
+      <option value="">anywhere</option>
+      {% for city, n in from_places %}<option value="{{ city }}"{{ ' selected' if start|lower == city|lower }}>{{ city }} ({{ n }})</option>{% endfor %}
+      {% if start and start|lower not in from_places|map('first')|map('lower')|list %}<option value="{{ start }}" selected>{{ start }} (0)</option>{% endif %}
+    </select>
+  </label>
+  <label class="meta">To
+    <select name="to" onchange="this.form.submit()">
+      <option value="">anywhere</option>
+      {% for city, n in to_places %}<option value="{{ city }}"{{ ' selected' if to|lower == city|lower }}>{{ city }} ({{ n }})</option>{% endfor %}
+    </select>
+  </label>
+  <noscript><button type="submit">Show</button></noscript>
+  {% if filtered %}<a class="chip" href="/{{ qs({'fourwd': fourwd, 'sort': sort, 'all': 1 if show_all else none}) }}#matches">Clear</a>{% endif %}
+</form>
+{% if first %}
+<div class="notice info">
+  <strong>Following on from {{ first.origin }} → {{ first.destination }}</strong> ({{ first.vehicle_name or first.vehicle_type }}, picks up {{ first.pickup_from|d }}–{{ first.pickup_to|d }}, {{ first.days_included|stars }} days{% if first.extra_days %} + up to {{ first.extra_days }} extra{% endif %}).
+  {% if window %}You could be in {{ first.destination }} between <strong>{{ window[0]|d }}</strong> and <strong>{{ window[1]|d }}</strong>; these legs pick up then.{% endif %}
+  <a href="{{ first.url }}" target="_blank" rel="noopener">Open it</a>
+</div>
+{% endif %}
 <div class="tools">
   <span class="meta">4WD campers:</span>
   {% for mode, label in [('include', 'Include'), ('exclude', 'Hide'), ('only', 'Only 4WD')] %}
-    <a class="chip{{ ' on' if fourwd == mode }}" href="?fourwd={{ mode }}&sort={{ sort }}{{ '&all=1' if show_all }}">{{ label }}</a>
+    <a class="chip{{ ' on' if fourwd == mode }}" href="{{ qs(keep, fourwd=mode) }}#matches">{{ label }}</a>
   {% endfor %}
   <span class="meta" style="margin-left:12px">Listings:</span>
-  <a class="chip{{ ' on' if not show_all }}" href="?fourwd={{ fourwd }}&sort={{ sort }}">Matches</a>
-  <a class="chip{{ ' on' if show_all }}" href="?fourwd={{ fourwd }}&sort={{ sort }}&all=1">Everything</a>
+  <a class="chip{{ ' on' if not show_all }}" href="{{ qs(keep, all=none) }}#matches">Matches</a>
+  <a class="chip{{ ' on' if show_all }}" href="{{ qs(keep, all=1) }}#matches">Everything</a>
 </div>
 <div class="tools">
   <span class="meta">Sort:</span>
   {% for key, label in sorts.items() %}
-    <a class="chip{{ ' on' if sort == key }}" href="?fourwd={{ fourwd }}&sort={{ key }}{{ '&all=1' if show_all }}">{{ label }}</a>
+    <a class="chip{{ ' on' if sort == key }}" href="{{ qs(keep, sort=key) }}#matches">{{ label }}</a>
   {% endfor %}
-  <span class="meta" style="margin-left:12px">Hover or tap a pace badge for trip stats.</span>
+  <span class="meta" style="margin-left:12px">Hover or tap a pace badge for trip stats. "↪ onward" shows legs you could chain on.</span>
 </div>
 {% if cfg.filters.four_wd != 'include' %}<p class="meta">config.yaml filters 4WD campers: <strong>{{ cfg.filters.four_wd }}</strong>.</p>{% endif %}
 
 {% if matches %}
   <div class="cards">{% for r in matches %}{{ card(r) }}{% endfor %}</div>
+{% elif first %}
+  <div class="empty">Nothing leaves {{ first.destination }} in that window right now.</div>
+{% elif filtered %}
+  <div class="empty">No matching relocations for that route right now.</div>
 {% else %}
   <div class="empty">No matching relocations listed right now. New ones appear here within an hour of going up.</div>
 {% endif %}

@@ -10,6 +10,8 @@ fuel allowance + a ferry seat for each extra passenger (the deals cover the vehi
 home.extra_passenger_ferry_aud is set.
 """
 import logging
+import re
+from datetime import date
 
 from . import db, settings, signal, trips
 from .sources import SOURCES
@@ -71,6 +73,37 @@ def ferry_text(inclusions: str | None) -> str | None:
     return None
 
 
+_SAILING = re.compile(r"(\d{1,2})[./](\d{1,2})[./](\d{4})\s*(?:at\s*)?(\d{1,2}(?::\d{2})?\s*[ap]m)?", re.I)
+_PORTS = re.compile(r"(geelong|melbourne|devonport)\s+to\s+(geelong|melbourne|devonport)", re.I)
+_AMOUNT = re.compile(r"\$\s?(\d[\d,]*)")
+
+
+def ferry_summary(text: str | None) -> str:
+    """The operators' ferry wording in a few words: 'sailing booked Geelong → Devonport 17 Nov 6:45pm',
+    'book your own, refunded up to $350', 'included for vehicle + driver'."""
+    t = text or ""
+    low = t.lower()
+    m = _SAILING.search(t)
+    if m:
+        try:
+            when = date(int(m.group(3)), int(m.group(2)), int(m.group(1))).strftime("%-d %b")
+        except ValueError:
+            when = None
+        if when:
+            ports = _PORTS.search(t)
+            route = f" {ports.group(1).title()} → {ports.group(2).title()}" if ports else ""
+            return f"sailing booked{route} {when}" + (f" {m.group(4).replace(' ', '').lower()}" if m.group(4) else "")
+    amount = _AMOUNT.search(t)
+    if any(w in low for w in ("reimburs", "refund", "against receipt")):
+        own = "book your own, " if "book own" in low or "book your own" in low else ""
+        return f"{own}refunded up to ${amount.group(1)}" if amount else f"{own}refunded against receipts"
+    if "book own" in low or "book your own" in low:
+        return "book your own ferry"
+    if "passenger" in low and "1 vehicle" in low:
+        return "included for the vehicle + 1 passenger"
+    return "included for the vehicle + driver"
+
+
 def open_rows(c, cfg: dict, today) -> list[dict]:
     cond, params = where(cfg, today)
     rows = c.execute(f"SELECT * FROM relocations WHERE {cond} ORDER BY pickup_from NULLS LAST, origin, source",
@@ -78,6 +111,7 @@ def open_rows(c, cfg: dict, today) -> list[dict]:
     for r in rows:
         r["home_cost"] = cost(r, cfg)
         r["ferry"] = ferry_text(r["inclusions"])
+        r["ferry_short"] = ferry_summary(r["ferry"])
         r["fuel_allowance"] = trips.fuel_allowance(r["inclusions"])
     return rows
 
@@ -105,9 +139,7 @@ def message_lines(r: dict) -> list[str]:
     label = SOURCES[r["source"]].label if r["source"] in SOURCES else r["source"]
     vehicle = f"{r['berths']}-berth {r['vehicle_type']}" if r["berths"] else (r["vehicle_name"] or r["vehicle_type"])
     fuel = f" · ⛽ fuel ${r['fuel_allowance']:,.0f}" if r["fuel_allowance"] else ""
-    ferry = r["ferry"] or "included"
-    if len(ferry) > 90:  # some operators write a paragraph; the full text is on the dashboard
-        ferry = ferry[:88].rsplit(" ", 1)[0] + "…"
+    ferry = r.get("ferry_short") or ferry_summary(r.get("ferry"))  # the full wording is on the dashboard
     c = r["home_cost"]
     lines = [f"{r['origin'] or '****'} → {r['destination']} · {vehicle} · {r['days_included'] or '****'} days · "
              f"pick up {r['pickup_from']:%-d %b}" if r["pickup_from"] else f"{r['origin']} → {r['destination']}",

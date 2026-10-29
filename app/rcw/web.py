@@ -8,11 +8,13 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from urllib.parse import urlencode
+
+from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from . import config, db, home, scheduler, settings, signal, stats, timefmt, trips
+from . import chain, config, db, home, scheduler, settings, signal, stats, timefmt, trips
 from .sources import SOURCES
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -40,7 +42,9 @@ templates.env.filters.update(dt=timefmt.dt, d=timefmt.d, ago=timefmt.ago, span=t
                              km=lambda v: f"{float(v):,.0f} km" if v is not None else "****",
                              stars=lambda v: "****" if v is None else v)
 templates.env.globals.update(version=VERSION, source_label=lambda s: SOURCES[s].label if s in SOURCES else s,
-                             trip_badge=trips.badge)
+                             trip_badge=trips.badge, today=timefmt.today,
+                             qs=lambda base, **kw: "?" + urlencode({k: v for k, v in {**base, **kw}.items()
+                                                                    if v not in (None, "")}))
 SORTS = {"starred": "Starred first", "explore": "Most room to explore", "soonest": "Soonest pickup"}
 
 
@@ -77,33 +81,71 @@ def _page(request: Request, template: str, cfg: dict, c, **ctx) -> HTMLResponse:
 
 
 @app.get("/", response_class=HTMLResponse)
-def current(request: Request, fourwd: str = "", all: int = 0, sort: str = "starred"):
+def current(request: Request, fourwd: str = "", all: int = 0, sort: str = "starred",
+            start: str = Query("", alias="from"), to: str = "", after: int | None = None):
     cfg = config.load()
     view = fourwd if fourwd in config.FOUR_WD_MODES else "include"
     sort = sort if sort in SORTS else "starred"
     keep_days = int(cfg["schedule"]["history_after_days"])
     with db.conn() as c:
-        matches = _group(c.execute("""SELECT * FROM relocations WHERE status = 'open' AND matched
-                                      ORDER BY boosted DESC, pickup_from NULLS LAST, first_seen DESC""").fetchall())
+        all_matches = _group(c.execute("""SELECT * FROM relocations WHERE status = 'open' AND matched
+                                          ORDER BY boosted DESC, pickup_from NULLS LAST, first_seen DESC""").fetchall())
+        # daisy-chain: following on from one relocation shows the legs that start where it ends, when you'd be there
+        first = c.execute("SELECT * FROM relocations WHERE id = %s", (after,)).fetchone() if after else None
+        if first:
+            start, window = first["destination"] or "", chain.arrival_window(first, cfg)
+        else:
+            window = None
+        for r in all_matches:
+            r["onward"] = len(chain.onward(r, all_matches, cfg))
+        from_places, to_places = chain.places(all_matches, "origin"), chain.places(all_matches, "destination")
+
+        def place_ok(r):
+            return ((not start or (r["origin"] or "").lower() == start.lower())
+                    and (not to or (r["destination"] or "").lower() == to.lower()))
+        matches = [r for r in all_matches if place_ok(r) and (not first or chain.fits_after(first, r, cfg))]
         missed = _group(c.execute("""SELECT * FROM relocations WHERE status = 'gone' AND matched AND gone_at > %s
                                      ORDER BY gone_at DESC""",
                                   (timefmt.now() - timedelta(days=keep_days),)).fetchall())
         others = c.execute("""SELECT * FROM relocations WHERE status = 'open' AND NOT matched
                               ORDER BY vehicle_type, origin, destination""").fetchall() if all else []
         open_total = c.execute("SELECT count(*) AS n FROM relocations WHERE status = 'open'").fetchone()["n"]
-        ways_home = home.group(home.open_rows(c, cfg, timefmt.today()))
+        ways_home = home.group(home.open_rows(c, cfg, timefmt.today())) if cfg["home"].get("city") else []
 
         def view_ok(r):
             return view == "include" or (view == "only") == bool(r["four_wd"])
         matches = [r for r in matches if view_ok(r)]
-        missed = [r for r in missed if view_ok(r)]
+        missed = [r for r in missed if view_ok(r) and place_ok(r)]
+        others = [r for r in others if place_ok(r)]
         if sort == "explore":
             matches.sort(key=lambda r: -((r["trip"] or {}).get("explore_km", -1)))
         elif sort == "soonest":
             matches.sort(key=lambda r: (r["pickup_from"] is None, r["pickup_from"]))
+        keep = {"fourwd": view, "sort": sort, "all": 1 if all else None, "from": start or None, "to": to or None,
+                "after": first["id"] if first else None}
         return _page(request, "current.html", cfg, c, page="current", matches=matches, missed=missed,
                      others=others, show_all=bool(all), fourwd=view, open_total=open_total, keep_days=keep_days,
-                     sort=sort, sorts=SORTS, ways_home=ways_home)
+                     sort=sort, sorts=SORTS, ways_home=ways_home, start=start, to=to, from_places=from_places,
+                     to_places=to_places, first=first, window=window, keep=keep,
+                     filtered=bool(start or to or first))
+
+
+@app.get("/home", response_class=HTMLResponse)
+def ways_home_page(request: Request, start: str = Query("", alias="from"), sort: str = "cost"):
+    cfg = config.load()
+    sort = sort if sort in ("cost", "soonest", "days") else "cost"
+    with db.conn() as c:
+        deals = home.group(home.open_rows(c, cfg, timefmt.today()))
+        origins = chain.places(deals, "origin")
+        shown = [d for d in deals if not start or (d["origin"] or "").lower() == start.lower()]
+        if sort == "cost":
+            shown.sort(key=lambda d: d["home_cost"]["total"])
+        elif sort == "days":
+            shown.sort(key=lambda d: -((d["days_included"] or 0) + (d["extra_days"] or 0)))
+        cheapest = min(deals, key=lambda d: d["home_cost"]["total"]) if deals else None
+        soonest = min((d["pickup_from"] for d in deals if d["pickup_from"]), default=None)
+        return _page(request, "home.html", cfg, c, page="home", deals=shown, total=len(deals), origins=origins,
+                     start=start, sort=sort, cheapest=cheapest, soonest=soonest)
 
 
 @app.get("/history", response_class=HTMLResponse)

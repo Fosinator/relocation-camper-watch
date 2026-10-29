@@ -1,4 +1,4 @@
-"""Command line (inside the container: docker exec relocation-camper-watch /venv/bin/python -m rcw ...).
+"""Command line (inside the container: docker exec -w /app relocation-camper-watch /venv/bin/python -m rcw ...).
 
   migrate                       create / update the tables
   poll [SOURCE|all] [--dry-run] poll now; --dry-run fetches and filters but prints instead of touching the database

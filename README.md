@@ -62,7 +62,7 @@ To back out, deploy the previous ref.
 
 ### Commands
 
-Run them inside the container: `docker exec relocation-camper-watch /venv/bin/python -m rcw <command>`
+Run them inside the container: `docker exec -w /app relocation-camper-watch /venv/bin/python -m rcw <command>`
 
 | Command | What |
 |---|---|

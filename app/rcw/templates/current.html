@@ -3,7 +3,7 @@
 {% block main %}
 
 <h1 id="matches">Current matches</h1>
-<p class="sub">{{ matches|length }} matching relocation{{ 's' if matches|length != 1 }}{% if filtered %} shown{% endif %} out of {{ open_total }} listed right now. Starred ones hit a keyword or include fuel or a ferry.</p>
+<p class="sub">{{ matches|length }} matching relocation{{ 's' if matches|length != 1 }}{% if filtered %} shown{% endif %} out of {{ open_total }} listed right now. Cards with a <span class="star-key">gold edge</span> are starred: they hit a keyword ({{ cfg.boosts.keywords|join(', ') }}) or include {{ cfg.boosts.inclusions|join(' or ') }}; the ⭐ line says which.</p>
 <form class="tools" method="get" action="/#matches">
   <input type="hidden" name="fourwd" value="{{ fourwd }}"><input type="hidden" name="sort" value="{{ sort }}">
   {% if show_all %}<input type="hidden" name="all" value="1">{% endif %}
@@ -26,10 +26,18 @@
   {% if filtered %}<a class="chip" href="/{{ qs({'fourwd': fourwd, 'sort': sort, 'all': 1 if show_all else none}) }}#matches">Clear</a>{% endif %}
 </form>
 {% if first %}
-<div class="notice info">
-  <strong>Following on from {{ first.origin }} → {{ first.destination }}</strong> ({{ first.vehicle_name or first.vehicle_type }}, picks up {{ first.pickup_from|d }}–{{ first.pickup_to|d }}, {{ first.days_included|stars }} days{% if first.extra_days %} + up to {{ first.extra_days }} extra{% endif %}).
-  {% if window %}You could be in {{ first.destination }} between <strong>{{ window[0]|d }}</strong> and <strong>{{ window[1]|d }}</strong>; these legs pick up then.{% endif %}
-  <a href="{{ first.url }}" target="_blank" rel="noopener">Open it</a>
+<div class="chain-box">
+  <div class="chain-title"><strong>Your chain so far</strong> · {{ trail|length }} leg{{ 's' if trail|length != 1 }} · {{ totals.days }} included days{% for cur, amount in totals.costs.items() %} · about {{ amount|money(cur) }}{% endfor %} out of pocket</div>
+  <ol class="chain-legs">
+    {% for leg in trail %}
+    <li><a href="{{ leg.url }}" target="_blank" rel="noopener">{{ '🇳🇿 ' if leg.region == 'NZ' }}{{ leg.origin }} → {{ leg.destination }}</a>
+      <span class="meta">{{ leg.vehicle_name or leg.vehicle_type }} · picks up {{ leg.pickup_from|d }}–{{ leg.pickup_to|d }} · {{ leg.days_included|stars }} days{% if leg.extra_days %} (+{{ leg.extra_days }}){% endif %} · {{ leg.cost.total|money(leg.currency) }}</span></li>
+    {% endfor %}
+  </ol>
+  <div class="meta">
+    {% if window %}You could be in <strong>{{ first.destination }}</strong> between <strong>{{ window[0]|d }}</strong> and <strong>{{ window[1]|d }}</strong>; the legs below pick up then. {% endif %}
+    <a href="{{ back_href }}#matches">← {{ 'back a leg' if trail|length > 1 else 'clear the chain' }}</a>
+  </div>
 </div>
 {% endif %}
 <div class="tools">

@@ -103,7 +103,7 @@ def _page(request: Request, template: str, cfg: dict, c, **ctx) -> HTMLResponse:
 
 @app.get("/", response_class=HTMLResponse)
 def current(request: Request, fourwd: str = "", all: int = 0, sort: str = "starred",
-            start: str = Query("", alias="from"), to: str = "", after: int | None = None, region: str = ""):
+            start: str = Query("", alias="from"), to: str = "", after: str = "", region: str = ""):
     cfg = config.load()
     region = region.upper() if region.upper() in chain.REGION_NAMES else ""
     view = fourwd if fourwd in config.FOUR_WD_MODES else "include"
@@ -113,14 +113,28 @@ def current(request: Request, fourwd: str = "", all: int = 0, sort: str = "starr
         all_matches = _group(c.execute("""SELECT * FROM relocations WHERE status = 'open' AND matched
                                           ORDER BY boosted DESC, pickup_from NULLS LAST, first_seen DESC""").fetchall())
         all_matches = [r for r in all_matches if not region or r["region"] == region]
-        # daisy-chain: following on from one relocation shows the legs that start where it ends, when you'd be there
-        first = c.execute("SELECT * FROM relocations WHERE id = %s", (after,)).fetchone() if after else None
+        # daisy-chain: after=<id>[,<id>...] is the chain so far; the legs shown start where its last leg ends,
+        # when you'd be there. Every card can extend the chain.
+        trail_ids = [int(x) for x in after.split(",") if x.strip().isdigit()][:10]
+        by_id = {r["id"]: r for r in c.execute("SELECT * FROM relocations WHERE id = ANY(%s)", (trail_ids,))}
+        trail = [by_id[i] for i in trail_ids if i in by_id]
+        for leg in trail:
+            leg["cost"] = routes.cost(leg, cfg)
+        first = trail[-1] if trail else None
         if first:
             start, window = first["destination"] or "", chain.arrival_window(first, cfg)
         else:
             window = None
+        base = {"fourwd": view, "sort": sort, "region": region or None}
+        chain_ids = [leg["id"] for leg in trail]
         for r in all_matches:
             r["onward"] = len(chain.onward(r, all_matches, cfg))
+            r["leaving"] = sum(1 for x in all_matches if x["id"] != r["id"] and r["destination"]
+                               and (x["origin"] or "").lower() == r["destination"].lower())
+            r["onward_href"] = "/?" + urlencode({k: v for k, v in {
+                **base, "after": ",".join(str(i) for i in chain_ids + [r["id"]])}.items() if v is not None})
+            r["leaving_href"] = "/?" + urlencode({k: v for k, v in {**base, "from": r["destination"]}.items()
+                                                   if v is not None})
             r["cost"] = routes.cost(r, cfg)
         from_places = chain.places_by_region(all_matches, "origin")
         to_places = chain.places_by_region(all_matches, "destination")
@@ -142,11 +156,19 @@ def current(request: Request, fourwd: str = "", all: int = 0, sort: str = "starr
         missed = [r for r in missed if view_ok(r) and place_ok(r)]
         others = [r for r in others if place_ok(r)]
         keep = {"fourwd": view, "sort": sort, "all": 1 if all else None, "from": start or None, "to": to or None,
-                "after": first["id"] if first else None, "region": region or None}
+                "after": ",".join(str(i) for i in chain_ids) or None, "region": region or None}
+        back_href = "/?" + urlencode({k: v for k, v in {**base, "after": ",".join(str(i) for i in chain_ids[:-1])
+                                                         or None}.items() if v is not None})
+        totals = {"days": sum((leg["days_included"] or 0) for leg in trail),
+                  "costs": {}}  # per currency: a chain can't mix AUD and NZD sensibly, but show both if it does
+        for leg in trail:
+            cur = leg.get("currency") or "AUD"
+            totals["costs"][cur] = totals["costs"].get(cur, 0) + leg["cost"]["total"]
         return _page(request, "current.html", cfg, c, page="current", matches=matches, missed=missed,
                      others=others, show_all=bool(all), fourwd=view, open_total=open_total, keep_days=keep_days,
                      sort=sort, sorts=SORTS, start=start, to=to, from_places=from_places,
-                     to_places=to_places, first=first, window=window, keep=keep, region=region,
+                     to_places=to_places, first=first, window=window, keep=keep, region=region, trail=trail,
+                     back_href=back_href, totals=totals,
                      region_links=_region_links(cfg, view, sort, all), filtered=bool(start or to or first))
 
 

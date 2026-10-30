@@ -178,7 +178,31 @@ def test_every_page_renders_with_trip_stats(cfg, monkeypatch):
     assert "limited by the days" in page and "limited by the km cap" in page
     assert '<option value="Darwin">Darwin (1)</option>' in page
     assert "Nothing listed on Anywhere → Hobart · ferry included" in client.get("/routes?to=Hobart&ferry=1").text
-    assert "Following on from Darwin → Adelaide" in client.get(f"/?after={rows()[0]['id']}").text
+    chained = client.get(f"/?after={rows()[0]['id']}").text
+    assert "Your chain so far" in chained and "Darwin → Adelaide</a>" in chained and "clear the chain" in chained
+    assert "↪ nothing leaves Adelaide right now" in page          # every card has an onward line, even with none
+
+
+def test_chaining_keeps_the_trail_and_offers_late_legs(cfg, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from rcw import config, web
+    monkeypatch.setattr(config, "load", lambda path=None: cfg)
+    src = Fake("imoova", [
+        listing("imoova", "1", origin="Sydney", destination="Hobart", pickup_from=date(2026, 11, 2),
+                pickup_to=date(2026, 11, 5)),
+        listing("imoova", "2", origin="Hobart", destination="Melbourne", pickup_from=date(2026, 11, 6),
+                pickup_to=date(2026, 11, 12)),
+        listing("imoova", "3", origin="Melbourne", destination="Sydney", pickup_from=date(2026, 12, 20),
+                pickup_to=date(2026, 12, 22))])                                          # leaves Melbourne too late
+    run(src, cfg, T0)
+    ids = {r["listing_id"]: r["id"] for r in rows()}
+    client = TestClient(web.app)
+    page = client.get("/").text
+    assert "↪ 1 onward leg from Hobart" in page and "↪ 1 leaves Melbourne, none in time" in page
+    two = client.get(f"/?after={ids['1']},{ids['2']}").text                             # Sydney -> Hobart -> Melbourne
+    assert "2 legs" in two and "Sydney → Hobart</a>" in two and "Hobart → Melbourne</a>" in two
+    assert "back a leg" in two and f"after={ids['1']}#matches" in two                # back = the first leg only
 
 
 def test_route_alerts_baseline_new_ones_and_switching_off(cfg, capsys, monkeypatch):

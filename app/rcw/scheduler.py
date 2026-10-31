@@ -12,7 +12,7 @@ import time
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from . import alerts, config, db, digest, poller, timefmt
+from . import alerts, config, db, digest, fuelcheck, poller, timefmt
 from .sources import SOURCES
 
 log = logging.getLogger(__name__)
@@ -31,6 +31,11 @@ def scheduled_poll(name: str) -> None:
 def hourly() -> None:
     cfg = config.load()
     now = timefmt.now()
+    if timefmt.local(now).hour >= 6:
+        try:
+            fuelcheck.update(now)   # once a day, only with a FuelCheck key in app.env
+        except Exception:  # noqa: BLE001
+            log.exception("FuelCheck update crashed")
     try:
         if digest.due(cfg, now):
             digest.send(cfg, now)

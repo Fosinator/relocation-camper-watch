@@ -19,8 +19,9 @@ from . import db, geo
 log = logging.getLogger(__name__)
 
 
-def fuel_status(cfg: dict, today) -> dict:
-    """The diesel prices in use and how old they are (set by hand in config.yaml, trip.fuel_price_*)."""
+def fuel_status(cfg: dict, today, live: dict | None = None) -> dict:
+    """The diesel prices in use and how old they are: the hand-set ones (config.yaml, trip.fuel_price_*) and
+    the live state prices from FuelCheck (fuelcheck.latest)."""
     t = cfg["trip"]
     try:
         as_of = date.fromisoformat(str(t.get("fuel_price_as_of")))
@@ -28,7 +29,21 @@ def fuel_status(cfg: dict, today) -> dict:
         as_of = None
     age = (today - as_of).days if as_of else None
     return {"prices": t["fuel_price_per_litre"], "as_of": as_of, "age_days": age, "source": t.get("fuel_price_source"),
-            "stale": age is None or age > int(t.get("fuel_price_max_age_days", 45))}
+            "stale": age is None or age > int(t.get("fuel_price_max_age_days", 45)), "live": live or {}}
+
+
+def fuel_price(row: dict, cfg: dict) -> tuple[float, str]:
+    """-> (price per litre in the listing's currency, where it came from). A trip starting in a state with a live
+    FuelCheck price uses it; everything else uses the hand-set price for its region."""
+    live = cfg["trip"].get("live_fuel") or {}
+    state = geo.city_state(row.get("origin")) if (row.get("region") or "AU") == "AU" else None
+    if state in live:
+        return float(live[state]), f"FuelCheck {state}"
+    prices = cfg["trip"]["fuel_price_per_litre"]
+    region = row.get("region") or "AU"
+    if isinstance(prices, dict):
+        return float(prices.get(region, prices.get("AU", 2.10))), "set by hand"
+    return float(prices), "set by hand"
 
 
 def fuel_allowance(inclusions: str | None) -> float | None:
@@ -98,9 +113,9 @@ def stats(row: dict, direct: dict, cfg: dict) -> dict:
             out["all_extra_cost"] = round(extra * price) if price is not None else None
 
     litres = km * float(t["fuel_l_per_100km"].get(row.get("vehicle_type") or "other", 12)) / 100
-    prices = t["fuel_price_per_litre"]
-    price = prices.get(row.get("region") or "AU", prices.get("AU", 2.10)) if isinstance(prices, dict) else prices
-    out["fuel_cost"] = round(litres * float(price))   # in the listing's own currency
+    price, price_from = fuel_price(row, cfg)
+    out["fuel_cost"] = round(litres * price)   # in the listing's own currency
+    out["fuel_price"], out["fuel_price_from"] = round(price, 2), price_from
     allowance = fuel_allowance(row.get("inclusions"))
     out["fuel_allowance"] = allowance
     out["fuel_cover_pct"] = min(100, round(100 * allowance / out["fuel_cost"])) if allowance and out["fuel_cost"] else 0
@@ -120,9 +135,11 @@ def badge(trip: dict | None) -> str | None:
 def refresh(cfg: dict, http=None, today=None) -> dict:
     """Recompute the trip stats of every open listing (the Routes page shows non-matches too), matches first,
     fetching missing routes within the request budget."""
+    from . import fuelcheck, timefmt
     t = cfg["trip"]
     done = waiting = 0
     with db.conn() as c:
+        t["live_fuel"] = {s: v["price"] for s, v in fuelcheck.latest(c, timefmt.now()).items()}
         router = geo.Router(c, int(t["routing_requests_per_poll"]), http)
         try:
             rows = c.execute("""SELECT * FROM relocations WHERE status = 'open'

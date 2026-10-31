@@ -63,6 +63,8 @@ SIGNAL_FROM=+61...
 SIGNAL_TO=+61...            # comma-separated for more than one
 DASHBOARD_URL=http://10.1.1.200
 # DRY_RUN=1                 # force dry-run whatever config.yaml says
+# FUELCHECK_KEY=...          # optional: NSW FuelCheck API key + secret (live NSW / Tasmania diesel prices)
+# FUELCHECK_SECRET=...
 ```
 
 Deploy any pushed branch, tag or commit with `sh scripts/deploy.sh <ref>`. It backs up the database, swaps the
@@ -162,6 +164,27 @@ can sort by most room to explore.
   trusted.
 - A city without a map position shows "no map position for X". Add it to `CITY_COORDS` in `rcw/geo.py`
   (and to `KNOWN_CITIES` in `rcw/normalise.py`).
+
+## Fuel prices
+
+Fuel costs use a diesel price per litre. A trip starting in NSW or Tasmania uses that state's live price from
+the NSW Government's **FuelCheck API**. Everything else uses the hand-set price in config.yaml
+(`trip.fuel_price_per_litre`, with `fuel_price_as_of` and `fuel_price_source`). The header of every page shows
+both and when they were set. The hand-set price turns red, with a banner and a digest line, after 45 days.
+
+**FuelCheck setup** (free tier, 2,500 calls a month; this uses about 60):
+1. Sign up at api.nsw.gov.au, open the Fuel API (Product 22) and subscribe to the free plan.
+2. Copy the app's API key and secret into `config/app.env` as `FUELCHECK_KEY=...` and
+   `FUELCHECK_SECRET=...`. They're read straight from the file, so no restart is needed.
+3. Fetch now with `python -m rcw fuel`, or wait for the next hourly job.
+
+Once a day the watcher gets an OAuth token, then every current price for NSW and Tasmania
+(`/FuelPriceCheck/v2/fuel/prices?states=NSW|TAS`). It keeps the median diesel (`DL`) price per state in
+`fuel_prices`, ignoring other fuels, prices outside 100–500 c and stations not updated for 14 days. A fetched
+price is used for 3 days. If FuelCheck fails, the hand-set price carries on.
+
+The other official sources can't be read automatically: MBIE's NZ weekly file is behind a bot check, and the
+AIP's weekly national figures load from a path its robots.txt blocks.
 
 ## Routes and route alerts
 

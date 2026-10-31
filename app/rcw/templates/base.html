@@ -164,7 +164,7 @@ footer { color: var(--muted); font-size: 12px; padding: 24px 0; }
         {% endif %}
       {% endfor %}
       {% if next_poll %}<span>Next poll {{ next_poll|dt }}</span>{% endif %}
-      <span class="{{ 'bad' if fuel.stale }}" title="{{ fuel.source or '' }}">⛽ Diesel {% for code, price in fuel.prices.items() %}{{ 'NZ$' if code == 'NZ' else 'A$' }}{{ '%.2f'|format(price) }}/L{{ ' · ' if not loop.last }}{% endfor %} · set {{ fuel.as_of|d if fuel.as_of else 'never' }}{% if fuel.age_days is not none %} ({{ 'today' if fuel.age_days <= 0 else (fuel.age_days ~ ' day' ~ ('s' if fuel.age_days != 1 else '') ~ ' ago') }}){% endif %}</span>
+      <span title="Median diesel price across stations, from the NSW FuelCheck API">{% if fuel.live %}⛽ Diesel {% for state, v in fuel.live.items() %}{{ state }} A${{ '%.2f'|format(v.price) }}{{ ' · ' if not loop.last }}{% endfor %} (FuelCheck, {{ fuel.live.values()|map(attribute='fetched_at')|max|dt }}) · {% endif %}</span><span class="{{ 'bad' if fuel.stale }}" title="{{ fuel.source or '' }}">{{ 'elsewhere ' if fuel.live else '⛽ Diesel ' }}{% for code, price in fuel.prices.items() %}{{ 'NZ$' if code == 'NZ' else 'A$' }}{{ '%.2f'|format(price) }}/L{{ ' · ' if not loop.last }}{% endfor %} · set {{ fuel.as_of|d if fuel.as_of else 'never' }}{% if fuel.age_days is not none %} ({{ 'today' if fuel.age_days <= 0 else (fuel.age_days ~ ' day' ~ ('s' if fuel.age_days != 1 else '') ~ ' ago') }}){% endif %}</span>
     </div>
   </div>
 </header>

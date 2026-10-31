@@ -15,7 +15,8 @@ from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from . import chain, config, db, normalise, prefs, routes, scheduler, settings, signal, stats, timefmt, trips
+from . import (chain, config, db, fuelcheck, normalise, prefs, routes, scheduler, settings, signal, stats, timefmt,
+               trips)
 from .sources import SOURCES
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -100,7 +101,7 @@ def _page(request: Request, template: str, cfg: dict, c, **ctx) -> HTMLResponse:
         "cfg": cfg, "sources": _sources(c, cfg), "config_error": config.error(),
         "dry_run": settings.DRY_RUN or bool(cfg["alerts"].get("dry_run")), "signal_paused": signal.paused(cfg),
         "here": request.url.path + (f"?{request.url.query}" if request.url.query else ""),
-        "fuel": trips.fuel_status(cfg, timefmt.today()),
+        "fuel": trips.fuel_status(cfg, timefmt.today(), fuelcheck.latest(c, timefmt.now())),
         "next_poll": scheduler.next_poll(), "dashboard": settings.DASHBOARD_URL, **ctx})
 
 

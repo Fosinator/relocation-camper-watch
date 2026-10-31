@@ -50,6 +50,25 @@ CITY_COORDS = {
 _ALL = set(normalise.KNOWN_CITIES) | set(normalise.KNOWN_CITIES_NZ)
 assert _ALL <= set(CITY_COORDS), _ALL - set(CITY_COORDS)
 
+# Australian state of each city, for state fuel prices (FuelCheck covers NSW and TAS; 2026-10-31)
+CITY_STATE = {
+    **dict.fromkeys(["Hobart", "Launceston", "Devonport"], "TAS"),
+    **dict.fromkeys(["Sydney", "Newcastle", "Wollongong", "Ballina", "Byron Bay", "Coffs Harbour",
+                     "Port Macquarie"], "NSW"),
+    "Canberra": "ACT",
+    **dict.fromkeys(["Melbourne", "Geelong", "Bairnsdale", "Mildura"], "VIC"),
+    **dict.fromkeys(["Brisbane", "Gold Coast", "Sunshine Coast", "Cairns", "Townsville", "Mackay", "Rockhampton",
+                     "Bundaberg", "Hervey Bay", "Whitsunday Coast"], "QLD"),
+    **dict.fromkeys(["Adelaide", "Port Lincoln", "Whyalla"], "SA"),
+    **dict.fromkeys(["Perth", "Broome", "Exmouth", "Esperance", "Albany", "Kununurra", "Kalgoorlie"], "WA"),
+    **dict.fromkeys(["Darwin", "Alice Springs"], "NT"),
+}
+assert set(normalise.KNOWN_CITIES) <= set(CITY_STATE), set(normalise.KNOWN_CITIES) - set(CITY_STATE)
+
+
+def city_state(name: str | None) -> str | None:
+    return CITY_STATE.get(name or "")
+
 
 def city_point(name: str | None) -> tuple[float, float] | None:
     if not name:

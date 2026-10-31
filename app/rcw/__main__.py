@@ -7,6 +7,7 @@
   outages                       run the 24-hour outage check now
   trips                         recompute the trip stats now (fetching missing routes within the budget)
   routes                        list the route alerts and what is on each (changes nothing)
+  fuel                          fetch today's NSW / Tasmania diesel prices from FuelCheck now (needs the key)
 """
 import argparse
 import logging
@@ -51,6 +52,7 @@ def main(argv=None) -> int:
     sub.add_parser("outages")
     sub.add_parser("trips")
     sub.add_parser("routes")
+    sub.add_parser("fuel")
     a = p.parse_args(argv)
     cfg = config.load()
 
@@ -85,6 +87,14 @@ def main(argv=None) -> int:
                 print(f"== {routes.label(w)} - alert {'on' if w['alert'] else 'off'} - {len(deals)} listed\n")
                 for d in deals:
                     print("\n".join(routes.message_lines(d)) + "\n")
+    elif a.cmd == "fuel":
+        from . import fuelcheck
+        if not fuelcheck.configured():
+            print("FUELCHECK_KEY / FUELCHECK_SECRET are not set in app.env")
+            return 1
+        found = fuelcheck.update(force=True)
+        print(found or "FuelCheck failed - see the log")
+        return 0 if found else 1
     return 0
 
 

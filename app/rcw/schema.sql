@@ -77,6 +77,17 @@ CREATE TABLE IF NOT EXISTS prefs (           -- switches set on the Alerts page;
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- 2026-10-31: live diesel prices (NSW FuelCheck API: NSW and Tasmania), one row per state per daily fetch
+CREATE TABLE IF NOT EXISTS fuel_prices (
+    id          bigserial PRIMARY KEY,
+    state       text NOT NULL,                 -- NSW | TAS
+    price       numeric(6, 3) NOT NULL,        -- AUD per litre, the median across stations
+    stations    int,
+    source      text NOT NULL,
+    fetched_at  timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS fuel_prices_state_idx ON fuel_prices (state, fetched_at);
+
 -- Road distances from the routing service, kept for good (one request per route, ever).
 CREATE TABLE IF NOT EXISTS road_routes (
     key          text PRIMARY KEY,        -- "lon,lat;lon,lat[;...]" rounded to 4 places

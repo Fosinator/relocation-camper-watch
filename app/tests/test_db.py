@@ -24,7 +24,7 @@ def database(monkeypatch):
     monkeypatch.setattr(settings, "DRY_RUN", True)
     with db.conn() as c:
         c.execute("""DROP TABLE IF EXISTS relocations, polls, source_state, digests, messages, road_routes, watches,
-                     watch_seen, prefs CASCADE""")
+                     watch_seen, prefs, fuel_prices CASCADE""")
     from rcw import prefs
     prefs._cache.update(at=0.0, values={})
     with db.conn() as c:

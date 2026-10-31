@@ -261,6 +261,44 @@ def test_route_alerts_baseline_new_ones_and_switching_off(cfg, capsys, monkeypat
     assert client.get("/home").url.path == "/routes"
 
 
+def test_route_alert_ignores_extra_copies_of_a_deal(cfg, capsys):
+    from rcw import routes
+    cfg["alerts"]["dry_run"] = True
+    ferry = "Ferry included Free ferry for vehicle and driver"
+    copy = dict(origin="Adelaide", destination="Hobart", inclusions=ferry, pickup_from=date(2026, 11, 16),
+                vehicle_type="campervan", berths=2)
+    src = Fake("transfercar", [listing("transfercar", "1", **copy)])
+    run(src, cfg, T0)
+    with db.conn() as c:
+        routes.seed_home_watch(c, cfg, T0.date(), T0)          # listing 1 = baseline
+    src.listings += [listing("transfercar", "2", **copy), listing("transfercar", "3", **copy)]  # more of the same
+    run(src, cfg, T0 + timedelta(hours=1))
+    assert "New on" not in capsys.readouterr().out             # copies of a deal already seen: quiet
+    src.listings += [listing("transfercar", n, **{**copy, "pickup_from": date(2026, 11, 27)}) for n in ("4", "5")]
+    run(src, cfg, T0 + timedelta(hours=2))
+    out = capsys.readouterr().out
+    assert out.count("Adelaide → Hobart") == 1 and "×2 available" in out and "pick up 27 Nov" in out
+    with db.conn() as c:
+        assert c.execute("SELECT count(*) AS n FROM watch_seen").fetchone()["n"] == 5
+
+
+def test_master_switch_stops_everything(cfg, capsys):
+    from fastapi.testclient import TestClient
+
+    from rcw import config, prefs, signal, web
+    prefs.set_switch("signal", False)
+    off = prefs.apply(cfg)
+    assert signal.paused(off) and signal.is_dry_run(off)
+    assert signal.send("hello", off) is True and "switched off: Signal message" in capsys.readouterr().out
+    client = TestClient(web.app)
+    page = client.get("/stats").text
+    assert "Signal messages are switched off" in page and "🔕 Signal off" in page
+    r = client.post("/alerts/switch?key=signal&on=1&back=/stats")
+    assert r.url.path == "/stats" and "🔔 Signal on" in r.text
+    assert prefs.apply(config.defaults())["alerts"]["signal"] is True
+    assert client.post("/alerts/switch?key=signal&on=1&back=//evil.example").url.path == "/alerts"
+
+
 def test_alert_switches_override_config(cfg):
     from rcw import alerts, prefs
     prefs.set_switch("digest", False)

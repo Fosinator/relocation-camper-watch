@@ -62,7 +62,7 @@
     <div class="home-head">
       <div>
         <div class="route">{{ '🇳🇿 ' if r.region == 'NZ' }}{{ r.origin or '****' }} → {{ r.destination or '****' }}</div>
-        <div class="meta">{{ r.vehicle_name or r.vehicle_type }}{% if r.berths %} · {{ r.berths }} berths{% endif %}{% if r.matched %} · ✓ matches your filters{% endif %}</div>
+        <div class="meta">{{ r.vehicle_name or r.vehicle_type }}{% if r.berths %} · {{ r.berths }} berths{% endif %}{% if r.matched %} · ✓ matches your filters{% endif %}{% if r.copies > 1 %} · <strong>×{{ r.copies }} available</strong>{% endif %}</div>
       </div>
       <div class="home-cost" title="{% for lbl, amount in c.parts %}{{ lbl }} ${{ amount }}{{ ' · ' if not loop.last }}{% endfor %}">
         <div class="big">{{ c.total|money(r.currency) }}</div><div class="meta">out of pocket</div>

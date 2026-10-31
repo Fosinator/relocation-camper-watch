@@ -44,6 +44,7 @@ DEFAULTS = {
     },
     "alerts": {
         "dry_run": False,
+        "signal": True,                  # master switch: false = nothing goes to Signal (Alerts page / header)
         "digest": True,
         "outage": True,
         "instant_starred": False,

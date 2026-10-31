@@ -69,6 +69,10 @@ details.trip > summary::-webkit-details-marker { display: none; }
 .trip-body { position: absolute; left: -1px; right: -1px; z-index: 5; margin-top: 6px; padding: 12px 14px;
   background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
 .bad-text { color: var(--bad); font-weight: 600; }
+.signal-switch { margin: 0; }
+.signal-switch .toggle { cursor: pointer; font: inherit; font-size: 14px; white-space: nowrap; }
+.inline-form { display: inline; margin: 0; }
+.linkish-ok { color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; }
 .onward { font-size: 14px; font-weight: 600; text-decoration: none; }
 .onward-late { color: var(--muted); font-weight: 500; }
 .star-key { border-left: 4px solid var(--star); padding-left: 4px; color: var(--star); font-weight: 600; }
@@ -143,6 +147,9 @@ footer { color: var(--muted); font-size: 12px; padding: 24px 0; }
         <a href="/stats" class="{{ 'on' if page == 'stats' }}">Stats</a>
         <a href="/alerts" class="{{ 'on' if page == 'alerts' }}">Alerts</a>
       </nav>
+      <form class="signal-switch" method="post" action="/alerts/switch{{ qs({'key': 'signal', 'on': 1 if signal_paused else 0, 'back': here}) }}">
+        <button type="submit" class="toggle {{ 'is-off' if signal_paused else 'is-on' }}" title="{{ 'Signal messages are off - tap to turn them back on' if signal_paused else 'Tap to stop all Signal messages' }}">{{ '🔕 Signal off' if signal_paused else '🔔 Signal on' }}</button>
+      </form>
     </div>
     <div class="status">
       {% for s in sources %}
@@ -162,7 +169,8 @@ footer { color: var(--muted); font-size: 12px; padding: 24px 0; }
 </header>
 <div class="wrap">
   {% if config_error %}<div class="notice">{{ config_error }}</div>{% endif %}
-  {% if dry_run %}<div class="notice info">Dry-run mode: digests and alerts are written to the log, not sent to Signal.</div>{% endif %}
+  {% if signal_paused %}<div class="notice info">🔕 <strong>Signal messages are switched off.</strong> Nothing is sent, and nothing piles up for later. <form class="inline-form" method="post" action="/alerts/switch{{ qs({'key': 'signal', 'on': 1, 'back': here}) }}"><button class="linkish linkish-ok" type="submit">Turn them back on</button></form></div>
+  {% elif dry_run %}<div class="notice info">Dry-run mode: digests and alerts are written to the log, not sent to Signal.</div>{% endif %}
   {% for s in sources if s.failing_since and s.last_error %}
     <div class="notice"><strong>{{ s.label }}</strong> has been failing since {{ s.failing_since|dt }}: {{ s.last_error }}{% if s.next_attempt_at %} · next try {{ s.next_attempt_at|dt }}{% endif %}</div>
   {% endfor %}

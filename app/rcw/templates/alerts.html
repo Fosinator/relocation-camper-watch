@@ -12,7 +12,9 @@
     <div>
       <div><strong>{{ label }}</strong></div>
       <div class="meta">
-        {% if key == 'digest' %}Every day at {{ cfg.schedule.digest_time }}{% if last_digest %} · last one {{ last_digest.created_at|dt }}{% endif %}
+        {% if key == 'signal' %}The master switch. Off = nothing at all goes to Signal, whatever the switches below say. Nothing piles up: turning it back on starts fresh.
+        {% elif signal_paused %}Paused by the master switch
+        {% elif key == 'digest' %}Every day at {{ cfg.schedule.digest_time }}{% if last_digest %} · last one {{ last_digest.created_at|dt }}{% endif %}
         {% elif key == 'outage' %}One message per outage, after {{ cfg.alerts.outage_hours }} h without a good poll
         {% elif key == 'instant_starred' %}A message for each new match with a ⭐, with its booking link{% endif %}
       </div>
@@ -54,7 +56,7 @@
 <div class="tablewrap"><table>
   <tr><th>When</th><th>Kind</th><th>Result</th><th>Message</th></tr>
   {% for m in recent %}
-  <tr><td>{{ m.created_at|dt }}</td><td>{{ m.kind }}</td><td>{{ 'dry run' if m.dry_run else ('sent' if m.sent else 'FAILED') }}</td>
+  <tr><td>{{ m.created_at|dt }}</td><td>{{ m.kind }}</td><td>{{ 'not sent (off / dry run)' if m.dry_run else ('sent' if m.sent else 'FAILED') }}</td>
     <td class="wrap-cell">{{ m.text|truncate(140) }}</td></tr>
   {% endfor %}
 </table></div>

@@ -12,6 +12,8 @@ log = logging.getLogger(__name__)
 
 # switch -> (config section, key, label on the Alerts page)
 SWITCHES = {
+    # the master switch (David 2026-10-31: "I need to be able to switch off the signal messages")
+    "signal": ("alerts", "signal", "All Signal messages"),
     "digest": ("alerts", "digest", "Daily digest at the digest time"),
     "outage": ("alerts", "outage", "Alert when a site has had no good poll for a day"),
     "instant_starred": ("alerts", "instant_starred", "Instant alert for each new starred match"),

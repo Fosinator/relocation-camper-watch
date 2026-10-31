@@ -138,22 +138,37 @@ def rows(c, cfg: dict, route: dict, today) -> list[dict]:
 
 
 def _same_deal(a: dict, b: dict) -> bool:
-    """The same van on both sites: same route, vehicle type, berths (or unknown) and first pickup day."""
-    return (a["source"] != b["source"] and (a["origin"] or "").lower() == (b["origin"] or "").lower()
-            and (a["destination"] or "").lower() == (b["destination"] or "").lower()
-            and a["vehicle_type"] == b["vehicle_type"] and a["pickup_from"] == b["pickup_from"]
+    """The same deal: same route, vehicle type, berths (or unknown) and first pickup day. That's either the same
+    van on the other site, or another copy - operators list each available van separately (2026-10-31: five
+    2-berth campervans Adelaide -> Hobart for 16 Nov arrived as five listings)."""
+    return (deal_key(a) == deal_key(b)
             and (a["berths"] is None or b["berths"] is None or a["berths"] == b["berths"]))
 
 
+def _includes(r: dict, word: str) -> bool:
+    return word in (r.get("inclusions") or "").lower()
+
+
+def deal_key(r: dict) -> tuple:
+    """Route, vehicle type, first pickup day and whether the ferry / fuel are included (a copy has the same
+    offer; a listing without the ferry is a different deal)."""
+    return ((r["origin"] or "").lower(), (r["destination"] or "").lower(), r["vehicle_type"], r["pickup_from"],
+            _includes(r, "ferry"), _includes(r, "fuel"))
+
+
 def group(rows_: list[dict]) -> list[dict]:
-    """Rows -> one entry per deal, with .also = the same van on the other site."""
+    """Rows -> one entry per deal, with .also = the same deal on the other site, .copies = how many vans are
+    listed (the most on any one site)."""
     out: list[dict] = []
     for r in rows_:
-        twin = next((p for p in out if _same_deal(p, r) and r["source"] not in {x["source"] for x in p["also"]}), None)
-        if twin:
+        twin = next((p for p in out if _same_deal(p, r)), None)
+        if twin is None:
+            out.append({**r, "also": [], "copies": 1, "per_site": {r["source"]: 1}})
+            continue
+        twin["per_site"][r["source"]] = twin["per_site"].get(r["source"], 0) + 1
+        twin["copies"] = max(twin["per_site"].values())
+        if r["source"] != twin["source"] and r["source"] not in {a["source"] for a in twin["also"]}:
             twin["also"].append(r)
-        else:
-            out.append({**r, "also": []})
     return out
 
 
@@ -163,6 +178,8 @@ def message_lines(r: dict) -> list[str]:
     head = f"{r['origin'] or '****'} → {r['destination'] or '****'} · {vehicle} · {r['days_included'] or '****'} days"
     if r["pickup_from"]:
         head += f" · pick up {r['pickup_from']:%-d %b}"
+    if r.get("copies", 1) > 1:
+        head += f" · ×{r['copies']} available"
     extras = [f"⛴ ferry {r['ferry_short']}"] if r.get("ferry_short") else []
     if r.get("fuel_allowance"):
         extras.append(f"⛽ fuel {normalise.dollars(r['fuel_allowance'], r.get('currency'))}")
@@ -215,19 +232,24 @@ def seed_home_watch(c, cfg: dict, today, now) -> None:
 
 
 def alert_new(cfg: dict, now, today) -> int:
-    """For each route alert that's switched on: one Signal message with the listings not seen before."""
+    """For each route alert that's switched on: one Signal message with the deals not seen before. Another copy
+    of a deal already seen (same route, vehicle type and first pickup day) is recorded quietly."""
     sent = 0
     with db.conn() as c:
         for w in watches(c):
             found = rows(c, cfg, w, today)
-            seen = {r["relocation_id"] for r in c.execute("SELECT relocation_id FROM watch_seen WHERE watch_id = %s",
-                                                          (w["id"],))}
+            seen_rows = c.execute("""SELECT r.id, r.origin, r.destination, r.vehicle_type, r.pickup_from, r.inclusions
+                                     FROM watch_seen s JOIN relocations r ON r.id = s.relocation_id
+                                     WHERE s.watch_id = %s""", (w["id"],)).fetchall()
+            seen = {r["id"] for r in seen_rows}
+            seen_deals = {deal_key(r) for r in seen_rows}
             new = [r for r in found if r["id"] not in seen]
             if not new:
                 continue
+            fresh = [r for r in new if deal_key(r) not in seen_deals]
             ok = False
-            if w["alert"]:
-                deals = group(new)
+            if w["alert"] and fresh:
+                deals = group(fresh)
                 head = f"🔔 New on {label(w)}" + (f" ({len(deals)})" if len(deals) > 1 else "")
                 text = "\n\n".join([head] + ["\n".join(message_lines(d)) for d in deals]
                                    + [f"Dashboard: {settings.DASHBOARD_URL}/routes?watch={w['id']}"])
@@ -235,9 +257,12 @@ def alert_new(cfg: dict, now, today) -> int:
                 c.execute("INSERT INTO messages (kind, dry_run, sent, text) VALUES ('route', %s, %s, %s)",
                           (signal.is_dry_run(cfg), ok, text))
                 sent += len(deals) if ok else 0
-                log.info("route alert %s: %d new - %s", label(w), len(new), "sent" if ok else "SEND FAILED")
-            if ok or not w["alert"]:  # a switched-off alert still marks them seen, so switching on sends no backlog
+                log.info("route alert %s: %d new deals (%d listings) - %s", label(w), len(deals), len(new),
+                         "sent" if ok else "SEND FAILED")
+            # marked seen when sent, when the alert is off (so switching it on sends no backlog), or when every
+            # listing was just another copy of a deal already seen
+            if ok or not w["alert"] or not fresh:
                 c.cursor().executemany("""INSERT INTO watch_seen (watch_id, relocation_id, seen_at, alerted)
                                  VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING""",
-                              [(w["id"], r["id"], now, ok) for r in new])
+                              [(w["id"], r["id"], now, ok and r in fresh) for r in new])
     return sent

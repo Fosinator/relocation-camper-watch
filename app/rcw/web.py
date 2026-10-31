@@ -97,7 +97,9 @@ def _group(rows: list[dict]) -> list[dict]:
 
 def _page(request: Request, template: str, cfg: dict, c, **ctx) -> HTMLResponse:
     return templates.TemplateResponse(request, template, {
-        "cfg": cfg, "sources": _sources(c, cfg), "config_error": config.error(), "dry_run": signal.is_dry_run(cfg),
+        "cfg": cfg, "sources": _sources(c, cfg), "config_error": config.error(),
+        "dry_run": settings.DRY_RUN or bool(cfg["alerts"].get("dry_run")), "signal_paused": signal.paused(cfg),
+        "here": request.url.path + (f"?{request.url.query}" if request.url.query else ""),
         "next_poll": scheduler.next_poll(), "dashboard": settings.DASHBOARD_URL, **ctx})
 
 
@@ -252,9 +254,9 @@ def alerts_page(request: Request):
 
 
 @app.post("/alerts/switch")
-def set_alert_switch(key: str, on: str):
+def set_alert_switch(key: str, on: str, back: str = "/alerts"):
     prefs.set_switch(key, _flag(on))
-    return RedirectResponse("/alerts", status_code=303)
+    return RedirectResponse(back if back.startswith("/") and not back.startswith("//") else "/alerts", status_code=303)
 
 
 @app.post("/alerts/route/{wid}")

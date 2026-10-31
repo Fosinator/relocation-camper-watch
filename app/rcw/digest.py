@@ -102,7 +102,13 @@ def build(c, cfg: dict, now) -> dict:
     since = last if last > EPOCH else now - timedelta(days=1)
     route_counts = [(routes.label(w), len(routes.group(routes.rows(c, cfg, w, timefmt.today(now)))))
                     for w in routes.watches(c)]
-    text = format_digest(timefmt.today(now), new, dups, gone, _problems(c, since), db.db_size_mb(c), cfg,
+    problems = _problems(c, since)
+    fuel = trips.fuel_status(cfg, timefmt.today(now))
+    if fuel["stale"]:
+        problems.append(f"Diesel prices for fuel costs were set {fuel['age_days']} days ago - update "
+                        "trip.fuel_price_per_litre and fuel_price_as_of in config.yaml" if fuel["age_days"] is not None
+                        else "Diesel prices for fuel costs have no date - set trip.fuel_price_as_of in config.yaml")
+    text = format_digest(timefmt.today(now), new, dups, gone, problems, db.db_size_mb(c), cfg,
                          settings.DASHBOARD_URL, route_counts)
     return {"text": text, "ids": ids + [d["id"] for v in dups.values() for d in v], "new": len(new),
             "starred": sum(1 for r in new if r["boosted"]), "gone": gone}

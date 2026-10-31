@@ -164,6 +164,7 @@ footer { color: var(--muted); font-size: 12px; padding: 24px 0; }
         {% endif %}
       {% endfor %}
       {% if next_poll %}<span>Next poll {{ next_poll|dt }}</span>{% endif %}
+      <span class="{{ 'bad' if fuel.stale }}" title="{{ fuel.source or '' }}">⛽ Diesel {% for code, price in fuel.prices.items() %}{{ 'NZ$' if code == 'NZ' else 'A$' }}{{ '%.2f'|format(price) }}/L{{ ' · ' if not loop.last }}{% endfor %} · set {{ fuel.as_of|d if fuel.as_of else 'never' }}{% if fuel.age_days is not none %} ({{ fuel.age_days }} day{{ 's' if fuel.age_days != 1 }} ago){% endif %}</span>
     </div>
   </div>
 </header>
@@ -171,6 +172,7 @@ footer { color: var(--muted); font-size: 12px; padding: 24px 0; }
   {% if config_error %}<div class="notice">{{ config_error }}</div>{% endif %}
   {% if signal_paused %}<div class="notice info">🔕 <strong>Signal messages are switched off.</strong> Nothing is sent, and nothing piles up for later. <form class="inline-form" method="post" action="/alerts/switch{{ qs({'key': 'signal', 'on': 1, 'back': here}) }}"><button class="linkish linkish-ok" type="submit">Turn them back on</button></form></div>
   {% elif dry_run %}<div class="notice info">Dry-run mode: digests and alerts are written to the log, not sent to Signal.</div>{% endif %}
+  {% if fuel.stale %}<div class="notice">⛽ The diesel prices used for fuel costs were set {{ fuel.age_days ~ ' days ago' if fuel.age_days is not none else 'never' }}. Update <code>trip.fuel_price_per_litre</code> and <code>trip.fuel_price_as_of</code> in config.yaml.</div>{% endif %}
   {% for s in sources if s.failing_since and s.last_error %}
     <div class="notice"><strong>{{ s.label }}</strong> has been failing since {{ s.failing_since|dt }}: {{ s.last_error }}{% if s.next_attempt_at %} · next try {{ s.next_attempt_at|dt }}{% endif %}</div>
   {% endfor %}

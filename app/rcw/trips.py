@@ -10,12 +10,25 @@ or what the km cap leaves beyond the route, whichever is smaller; explore_limit 
 import logging
 import math
 import re
+from datetime import date
 
 from psycopg.types.json import Jsonb
 
 from . import db, geo
 
 log = logging.getLogger(__name__)
+
+
+def fuel_status(cfg: dict, today) -> dict:
+    """The diesel prices in use and how old they are (set by hand in config.yaml, trip.fuel_price_*)."""
+    t = cfg["trip"]
+    try:
+        as_of = date.fromisoformat(str(t.get("fuel_price_as_of")))
+    except ValueError:
+        as_of = None
+    age = (today - as_of).days if as_of else None
+    return {"prices": t["fuel_price_per_litre"], "as_of": as_of, "age_days": age, "source": t.get("fuel_price_source"),
+            "stale": age is None or age > int(t.get("fuel_price_max_age_days", 45))}
 
 
 def fuel_allowance(inclusions: str | None) -> float | None:

@@ -60,6 +60,8 @@ def test_nz_matching_and_fuel(cfg):
     assert filters.evaluate(row, cfg, date(2026, 10, 30))["matched"]          # the AU city list doesn't apply
     cfg["filters"]["cities_nz"] = ["Christchurch"]
     assert not filters.evaluate(row, cfg, date(2026, 10, 30))["matched"]
+    cfg["trip"]["fuel_price_per_litre"] = {"AU": 2.10, "NZ": 2.60}
+    cfg["trip"]["fuel_l_per_100km"]["motorhome"] = 15
     direct = {"drive_km": 1000, "drive_hours": 12, "ferry_km": 92, "roads": []}
     nz = trips.stats({**row, "region": "NZ"}, direct, cfg)
     au = trips.stats({**row, "region": "AU"}, direct, cfg)
@@ -69,4 +71,4 @@ def test_nz_matching_and_fuel(cfg):
 def test_old_single_fuel_price_still_works():
     from rcw import config
     cfg = config._check(config._merge(config.DEFAULTS, {"trip": {"fuel_price_per_litre": 2.30}}))
-    assert cfg["trip"]["fuel_price_per_litre"] == {"AU": 2.30, "NZ": 2.60}
+    assert cfg["trip"]["fuel_price_per_litre"] == {"AU": 2.30, "NZ": 2.85}

@@ -83,3 +83,27 @@ def test_route_conditions_and_label():
 
 def test_no_ferry_seat_note_without_a_ferry(cfg):
     assert home.cost(row(inclusions="Fuel $250"), cfg)["notes"] == []
+
+
+def test_ferry_added_when_the_route_crosses_and_it_is_not_included(cfg):
+    # David 2026-10-31: "trips to hobart that don't include the ferry ticket - that is nearly $1000"
+    crossing = {"fuel_cost": 300, "fuel_allowance": None, "ferry": True}
+    without = home.cost(row(inclusions=None, trip=crossing), cfg)
+    assert ("ferry (not included)", 1000) in without["parts"] and without["total"] == 5 + 59 + 300 + 1000
+    assert not any(n.startswith("plus a ferry seat") for n in without["notes"])
+    included = home.cost(row(trip=crossing), cfg)                       # the default row includes the ferry
+    assert not any(lbl.startswith("ferry (not") for lbl, _ in included["parts"])
+    nz = home.cost(row(inclusions=None, trip=crossing, region="NZ"), cfg)
+    assert ("ferry (not included)", 500) in nz["parts"]
+    mainland = home.cost(row(inclusions=None, trip={"fuel_cost": 300, "ferry": False}), cfg)
+    assert not any(lbl.startswith("ferry") for lbl, _ in mainland["parts"])
+
+
+def test_fuel_price_age(cfg):
+    from datetime import date as d
+    from rcw import trips
+    fresh = trips.fuel_status(cfg, d(2026, 11, 10))
+    assert fresh["prices"] == {"AU": 2.20, "NZ": 2.85} and fresh["age_days"] == 10 and not fresh["stale"]
+    assert trips.fuel_status(cfg, d(2027, 1, 1))["stale"]                 # older than 45 days
+    cfg["trip"]["fuel_price_as_of"] = "not a date"
+    assert trips.fuel_status(cfg, d(2026, 11, 10))["stale"]

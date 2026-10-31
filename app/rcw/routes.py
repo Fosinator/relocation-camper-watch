@@ -9,8 +9,9 @@ one never sends a backlog. "Ways home to Hobart" is just the first watch (Anywhe
 any vehicle), seeded from config.yaml's home: section.
 
 Cost = hire ($1/day x included days) + the booking fee (Imoova states it) + fuel for the route less the fuel
-allowance + a ferry seat for each extra passenger when the ferry is included (the deals cover the vehicle and
-driver only) and home.extra_passenger_ferry_aud is set.
+allowance + the ferry (trip.ferry_cost) when the route crosses Bass / Cook Strait and the listing doesn't include
+it + a ferry seat for each extra passenger when the ferry is included (the deals cover the vehicle and driver
+only) and home.extra_passenger_ferry_aud is set.
 """
 import logging
 import re
@@ -75,8 +76,17 @@ def cost(row: dict, cfg: dict) -> dict:
         parts.append(("fuel" + (" after the allowance" if trip.get("fuel_allowance") else ""), fuel))
     else:
         notes.append("fuel not estimated yet")
+    ferry_included = "ferry" in (row.get("inclusions") or "").lower()
+    if trip.get("ferry") and not ferry_included:
+        # the route crosses Bass / Cook Strait and the listing doesn't pay for the ferry (David 2026-10-31)
+        fares = cfg["trip"].get("ferry_cost") or {}
+        fare = fares.get(row.get("region") or "AU")
+        if fare is not None:
+            parts.append(("ferry (not included)", float(fare)))
+        else:
+            notes.append("plus the ferry, not included")
     extra = max(0, int(h.get("passengers") or 1) - 1)
-    if extra and "ferry" in (row.get("inclusions") or "").lower():
+    if extra and ferry_included:
         seat = h.get("extra_passenger_ferry_aud")
         if seat is not None:
             parts.append((f"ferry seat{'s' if extra != 1 else ''} for {extra} more", float(seat) * extra))

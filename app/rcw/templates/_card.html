@@ -17,7 +17,7 @@
     <summary><span class="pace pace-{{ t.pace|replace(' ', '-') }}">{{ trip_badge(t) }}</span> <span class="meta">trip stats</span></summary>
     <div class="trip-body">
       <dl class="facts">
-        <dt>Route</dt><dd>{{ t.route_km|km }} · {{ t.drive_hours }} h driving{% if t.ferry %} + Bass Strait ferry{% endif %}</dd>
+        <dt>Route</dt><dd>{{ t.route_km|km }} · {{ t.drive_hours }} h driving{% if t.ferry %} + {{ 'Cook' if r.region == 'NZ' else 'Bass' }} Strait ferry{% if 'ferry' not in (r.inclusions or '')|lower %} <span class="bad-text">(not included, about {{ cfg.trip.ferry_cost.get(r.region or 'AU')|money(r.currency) }})</span>{% endif %}{% endif %}</dd>
         <dt>Needs</dt><dd>{{ t.hours_per_day }} h ({{ t.km_per_day|km }}) a day over {{ r.days_included }} days</dd>
         <dt>Comfortable</dt><dd>{{ t.comfortable_days }} days at {{ cfg.trip.comfortable_hours_per_day }} h a day{% if t.days_short %}: {{ t.days_short }} short{% if t.buy_days %}, buy {{ t.buy_days }} extra{% if t.buy_cost is not none %} ({{ t.buy_cost|money(r.currency) }}){% endif %}{% endif %}{% endif %}</dd>
         <dt>Explore</dt><dd>{{ t.explore_km|km }} spare, limited by the {{ t.explore_limit }}{% if t.explore_km_all_extra is defined %} · {{ t.explore_km_all_extra|km }} with all {{ r.extra_days }} extra days{% if t.all_extra_cost is not none %} ({{ t.all_extra_cost|money(r.currency) }}){% endif %}{% if t.explore_limit_all_extra == 'km cap' %}, limited by the km cap{% endif %}{% endif %}</dd>

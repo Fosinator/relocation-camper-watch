@@ -24,7 +24,7 @@ def test_eight_days_4500_km_cap_days_are_the_limit(cfg):
     assert t["explore_km"] == 222 and t["explore_limit"] == "days"  # (8 x 5 h - 37.3 h) x 81 km/h
     assert t["explore_km_all_extra"] == 1439 and t["explore_limit_all_extra"] == "days"
     assert t["all_extra_cost"] == 300 and t["cap_spare_km"] == 1478
-    assert t["fuel_cost"] == 762 and t["fuel_allowance"] is None     # 3,022 km x 12 L/100 x $2.10
+    assert t["fuel_cost"] == 665 and t["fuel_allowance"] is None     # 3,022 km x 10 L/100 x $2.20
     assert trips.badge(t) == "Comfortable · +222 km to explore"
 
 
@@ -33,7 +33,7 @@ def test_seven_days_3400_km_cap_the_cap_is_the_limit(cfg):
                             inclusions="Fuel $300 upon receipts"), DIRECT, cfg)
     assert t["pace"] == "busy" and t["explore_km"] == 0              # 5.3 h a day: no comfortable hours left
     assert t["explore_km_all_extra"] == 378 and t["explore_limit_all_extra"] == "km cap"  # 9 days, but 3,400 km
-    assert t["fuel_allowance"] == 300 and t["fuel_cover_pct"] == 39
+    assert t["fuel_allowance"] == 300 and t["fuel_cover_pct"] == 45
     assert trips.badge(t) == "Busy"
 
 

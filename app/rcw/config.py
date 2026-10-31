@@ -64,8 +64,19 @@ DEFAULTS = {
         "busy_hours_per_day": 7,
         "max_hours_per_day": 9,
         "camper_time_factor": 1.15,      # campers are slower than the routing service's car times
-        "fuel_l_per_100km": {"motorhome": 15, "campervan": 12, "other": 9},
-        "fuel_price_per_litre": {"AU": 2.10, "NZ": 2.60},   # in each region's own dollars
+        # Estimates, not measured (David asked 2026-10-31 where they come from). Checked that day: Fiat Ducato
+        # motorhomes ~10-12 L/100 km real-world (bigger 6-berths more), Toyota Hiace vans ~7-9.
+        "fuel_l_per_100km": {"motorhome": 13, "campervan": 10, "other": 9},
+        # Diesel per litre in each region's own dollars, set by hand: the official weekly figures can't be read
+        # automatically (MBIE's file is behind a bot check; AIP's weekly data loads from a robots-blocked path).
+        # The dashboard shows the price and when it was set, and warns once it's older than fuel_price_max_age_days.
+        "fuel_price_per_litre": {"AU": 2.20, "NZ": 2.85},
+        "fuel_price_as_of": "2026-10-31",
+        "fuel_price_source": "AIP weekly national diesel ~A$2.22-2.24; NZ trackers NZ$2.68-2.89 (web check)",
+        "fuel_price_max_age_days": 45,
+        # Ferry when a route crosses Bass Strait / Cook Strait and the listing doesn't include it: vehicle +
+        # passengers, one way, each in its own dollars (David 2026-10-31: the Spirit of Tasmania is "nearly $1000").
+        "ferry_cost": {"AU": 1000, "NZ": 500},
         "routing_requests_per_poll": 60,
         # the routing service will use outback tracks relocation vehicles aren't allowed on
         "unsealed_roads": ["Great Central Road", "Tjukaruru Road", "Outback Way", "Gunbarrel Highway",

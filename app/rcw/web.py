@@ -100,6 +100,7 @@ def _page(request: Request, template: str, cfg: dict, c, **ctx) -> HTMLResponse:
         "cfg": cfg, "sources": _sources(c, cfg), "config_error": config.error(),
         "dry_run": settings.DRY_RUN or bool(cfg["alerts"].get("dry_run")), "signal_paused": signal.paused(cfg),
         "here": request.url.path + (f"?{request.url.query}" if request.url.query else ""),
+        "fuel": trips.fuel_status(cfg, timefmt.today()),
         "next_poll": scheduler.next_poll(), "dashboard": settings.DASHBOARD_URL, **ctx})
 
 

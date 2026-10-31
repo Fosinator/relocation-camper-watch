@@ -103,7 +103,7 @@ def test_fuel_price_age(cfg):
     from datetime import date as d
     from rcw import trips
     fresh = trips.fuel_status(cfg, d(2026, 11, 10))
-    assert fresh["prices"] == {"AU": 2.20, "NZ": 2.85} and fresh["age_days"] == 10 and not fresh["stale"]
+    assert fresh["prices"] == {"AU": 2.70, "NZ": 2.85} and fresh["age_days"] == 10 and not fresh["stale"]
     assert trips.fuel_status(cfg, d(2027, 1, 1))["stale"]                 # older than 45 days
     cfg["trip"]["fuel_price_as_of"] = "not a date"
     assert trips.fuel_status(cfg, d(2026, 11, 10))["stale"]

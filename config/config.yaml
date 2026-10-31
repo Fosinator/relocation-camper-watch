@@ -48,8 +48,12 @@ trip:
   busy_hours_per_day: 7
   max_hours_per_day: 9              # beyond this the pace shows as "too tight"
   camper_time_factor: 1.15          # campers drive slower than the routing service's car times
-  fuel_l_per_100km: {motorhome: 15, campervan: 12, other: 9}
-  fuel_price_per_litre: {AU: 2.10, NZ: 2.60}   # each in its own dollars
+  fuel_l_per_100km: {motorhome: 13, campervan: 10, other: 9}   # estimates; checked 31 Oct 2026: Ducato motorhomes ~10-12, Hiace vans ~7-9
+  fuel_price_per_litre: {AU: 2.70, NZ: 2.85}   # diesel, each in its own dollars - set by hand
+  fuel_price_as_of: "2026-10-31"            # update with the price; the dashboard warns after 45 days
+  fuel_price_source: "AU: David's check at the pump, 31 Oct 2026; NZ: trackers NZ$2.68-2.89 (web check)"
+  fuel_price_max_age_days: 45
+  ferry_cost: {AU: 1000, NZ: 500}            # when a route crosses Bass / Cook Strait without the ferry included
   routing_requests_per_poll: 60
   unsealed_roads: [Great Central Road, Tjukaruru Road, Outback Way, Gunbarrel Highway, Tanami Road,
                    Gibb River Road, Plenty Highway, Donohue Highway, Sandover Highway, Buchanan Highway,

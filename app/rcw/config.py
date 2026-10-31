@@ -70,9 +70,9 @@ DEFAULTS = {
         # Diesel per litre in each region's own dollars, set by hand: the official weekly figures can't be read
         # automatically (MBIE's file is behind a bot check; AIP's weekly data loads from a robots-blocked path).
         # The dashboard shows the price and when it was set, and warns once it's older than fuel_price_max_age_days.
-        "fuel_price_per_litre": {"AU": 2.20, "NZ": 2.85},
+        "fuel_price_per_litre": {"AU": 2.70, "NZ": 2.85},
         "fuel_price_as_of": "2026-10-31",
-        "fuel_price_source": "AIP weekly national diesel ~A$2.22-2.24; NZ trackers NZ$2.68-2.89 (web check)",
+        "fuel_price_source": "AU: David's check at the pump; NZ: trackers NZ$2.68-2.89 (web check)",
         "fuel_price_max_age_days": 45,
         # Ferry when a route crosses Bass Strait / Cook Strait and the listing doesn't include it: vehicle +
         # passengers, one way, each in its own dollars (David 2026-10-31: the Spirit of Tasmania is "nearly $1000").
